@@ -1,6 +1,7 @@
 package com.booktown.domain.user.controller.api;
 
 import com.booktown.domain.auth.security.UserPrincipal;
+import com.booktown.domain.book.dto.BookmarkItemResponse;
 import com.booktown.domain.user.dto.UpdateProfileRequest;
 import com.booktown.domain.user.dto.UserResponse;
 import com.booktown.global.response.ApiResponse;
@@ -8,11 +9,13 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import org.springframework.data.domain.Page;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 
 @RequestMapping("/users")
 @Tag(name = "Users", description = "내 사용자 정보와 프로필 API")
@@ -27,5 +30,13 @@ public interface UserApi {
     ApiResponse<UserResponse> updateMe(
             @AuthenticationPrincipal UserPrincipal principal,
             @Valid @RequestBody UpdateProfileRequest request
+    );
+
+    @GetMapping("/me/bookmarks")
+    @Operation(summary = "내 찜 목록", description = "로그인 사용자의 찜한 도서 목록을 페이지 단위로 반환합니다.", security = @SecurityRequirement(name = "bearerAuth"))
+    ApiResponse<Page<BookmarkItemResponse>> getMyBookmarks(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size
     );
 }

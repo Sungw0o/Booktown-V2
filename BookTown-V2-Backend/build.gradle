@@ -65,6 +65,7 @@ dependencyManagement {
 
 tasks.named('test') {
 	useJUnitPlatform()
+	jvmArgs '-XX:+EnableDynamicAgentLoading'
 	finalizedBy tasks.named('jacocoTestReport')
 }
 
