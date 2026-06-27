@@ -1,4 +1,5 @@
 [config]
+model = "gemini/gemini-2.0-flash"
 language = "ko"
 
 [pr_reviewer]
