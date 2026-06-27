@@ -1,0 +1,18 @@
+spring:
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:db/schema.sql
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+  ai:
+    vectorstore:
+      chroma:
+        initialize-schema: true
+
+logging:
+  level:
+    com.booktown: DEBUG
+    org.hibernate.SQL: DEBUG

@@ -1,0 +1,107 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [dev, master]
+  pull_request:
+    branches: [dev, master]
+
+# 워크플로우 기본 최소 권한 설정
+permissions:
+  contents: read
+
+# 동시 배포 제어 설정 (최신 배포가 우선됨)
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  ci:
+    name: Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        with:
+          persist-credentials: false
+
+      - name: Node.js 설정
+        uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b # v4.0.3
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: 의존성 설치
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: 빌드
+        run: npm run build
+
+      - name: 빌드 결과물 업로드 (CD 단계용)
+        if: github.ref == 'refs/heads/dev' && github.event_name == 'push'
+        uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808 # v4.3.3
+        with:
+          name: dist
+          path: dist/
+          retention-days: 1
+
+  cd:
+    name: Deploy to S3 + CloudFront
+    runs-on: ubuntu-latest
+    needs: ci
+    if: github.ref == 'refs/heads/dev' && github.event_name == 'push'
+
+    # OIDC 토큰 발급을 위한 permissions 필수
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: 빌드 결과물 다운로드
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
+        with:
+          name: dist
+          path: dist/
+
+      # 장기 Access Key 없이 OIDC로 임시 자격증명 발급
+      - name: AWS 자격증명 설정 (OIDC)
+        uses: aws-actions/configure-aws-credentials@5579c002bb4778aa43395ef1df492868a9a1c83f # v4.0.2
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      # 1단계: HTML — 항상 최신 진입점이어야 하므로 캐시 비활성화
+      - name: S3 동기화 — HTML (캐시 없음)
+        run: |
+          CLEAN_BUCKET=$(echo "${{ vars.S3_BUCKET }}" | tr -d '\r\n[:space:]')
+          aws s3 sync dist/ s3://$CLEAN_BUCKET \
+            --exclude "*" \
+            --include "*.html" \
+            --cache-control "no-cache, no-store, must-revalidate" \
+            --delete
+
+      # 2단계: 해시된 정적 자산 — 파일명에 해시가 포함되므로 장기 캐시 적용
+      - name: S3 동기화 — 정적 자산 (장기 캐시)
+        run: |
+          CLEAN_BUCKET=$(echo "${{ vars.S3_BUCKET }}" | tr -d '\r\n[:space:]')
+          aws s3 sync dist/ s3://$CLEAN_BUCKET \
+            --exclude "*.html" \
+            --cache-control "public, max-age=31536000, immutable"
+
+      # 3단계: CloudFront 캐시 무효화 (HTML 파일 및 루트 경로만 무효화)
+      - name: CloudFront 캐시 무효화
+        run: |
+          CLEAN_DIST_ID=$(echo "${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }}" | tr -d '\r\n[:space:]')
+          aws cloudfront create-invalidation \
+            --distribution-id "$CLEAN_DIST_ID" \
+            --paths "/index.html" "/" "/favicon.ico" "/favicon.png" "/apple-touch-icon.png" "/favicon.svg"
+
+      - name: 배포 완료 알림
+        run: echo "✅ 배포 완료 → https://www.booktown.shop"

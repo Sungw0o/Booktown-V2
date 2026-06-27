@@ -1,0 +1,13 @@
+.git
+.github
+.gradle
+build
+out
+*.md
+*.sh
+.env
+.env.*
+!.env.example
+compose.yaml
+compose.prod.yaml
+src/test

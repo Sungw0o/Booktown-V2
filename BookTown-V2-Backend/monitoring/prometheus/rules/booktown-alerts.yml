@@ -1,0 +1,64 @@
+groups:
+  - name: booktown-application
+    rules:
+      - alert: BookTownHigh5xxRate
+        expr: sum(rate(http_server_requests_seconds_count{status=~"5.."}[5m])) > 0
+        for: 2m
+        labels:
+          severity: warning
+          service: backend
+        annotations:
+          summary: BookTown backend is returning 5xx responses.
+          description: Check backend logs in Loki using trace_id and inspect recent deployments.
+
+      - alert: BookTownAuthFailureSpike
+        expr: increase(booktown_auth_failures_total[5m]) > 10
+        for: 1m
+        labels:
+          severity: warning
+          service: backend
+        annotations:
+          summary: Authentication failures increased.
+          description: Login, token, or OAuth failure count exceeded the threshold.
+
+      - alert: BookTownAiFailureOrRateLimit
+        expr: increase(booktown_ai_calls_total{status=~"failure|rate_limited"}[5m]) > 0
+        for: 1m
+        labels:
+          severity: warning
+          service: backend
+        annotations:
+          summary: AI call failed or was rate limited.
+          description: Check AI provider status, request volume, and application logs.
+
+  - name: booktown-infrastructure
+    rules:
+      - alert: BookTownDiskSpaceLow
+        expr: (node_filesystem_avail_bytes{fstype!~"tmpfs|overlay"} / node_filesystem_size_bytes{fstype!~"tmpfs|overlay"}) < 0.15
+        for: 5m
+        labels:
+          severity: critical
+          service: ec2
+        annotations:
+          summary: EC2 disk free space is below 15%.
+          description: Remove old Docker images, logs, or backup files before deployment fails.
+
+      - alert: BookTownContainerMemoryHigh
+        expr: (container_memory_working_set_bytes{name!=""} / container_spec_memory_limit_bytes{name!=""}) > 0.90
+        for: 5m
+        labels:
+          severity: warning
+          service: docker
+        annotations:
+          summary: Container memory usage is above 90% of its limit.
+          description: Inspect the container in cAdvisor and consider adjusting memory limits.
+
+      - alert: BookTownMySqlBackupStale
+        expr: time() - max(timestamp(container_last_seen{name=~".*mysql-backup.*"})) > 90000
+        for: 10m
+        labels:
+          severity: warning
+          service: mysql-backup
+        annotations:
+          summary: MySQL backup container has not been observed recently.
+          description: Check mysql-backup container logs and verify the latest dump file.

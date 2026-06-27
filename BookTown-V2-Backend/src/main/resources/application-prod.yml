@@ -1,0 +1,18 @@
+spring:
+  sql:
+    init:
+      mode: never
+      schema-locations: classpath:db/schema.sql
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+  ai:
+    vectorstore:
+      chroma:
+        initialize-schema: false
+
+logging:
+  level:
+    com.booktown: INFO
+    root: WARN
