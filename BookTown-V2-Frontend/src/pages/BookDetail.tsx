@@ -133,7 +133,11 @@ export const BookDetail: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-[240px_1fr] gap-8">
             {/* Book Cover */}
             <div className="aspect-[4/5] w-full max-w-[240px] mx-auto rounded-xl overflow-hidden shadow-2xl shadow-purple-950/20 bg-slate-900/40 border border-black/5 dark:border-white/5">
-              <DkCover book={{ id: book.id, title: book.title, author: book.author }} className="w-full h-full object-cover" />
+              {book.coverImageUrl ? (
+                <img src={book.coverImageUrl} alt={`${book.title} 표지`} className="w-full h-full object-cover" />
+              ) : (
+                <DkCover book={{ id: book.id, title: book.title, author: book.author }} className="w-full h-full object-cover" />
+              )}
             </div>
 
             {/* Information Info */}

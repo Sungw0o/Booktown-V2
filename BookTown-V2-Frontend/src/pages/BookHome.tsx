@@ -2,28 +2,40 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { getBooks } from '../api/bookApi';
-import type { Book } from '../api/bookApi';
+import type { Book, PageMeta } from '../api/bookApi';
 import { DkTopNav, DkCover, DkBadge } from '../components/Primitives';
-import { Search, SlidersHorizontal, Loader2, BookOpen } from 'lucide-react';
+import { Search, SlidersHorizontal, Loader2, BookOpen, ChevronLeft, ChevronRight } from 'lucide-react';
+
+const GENRES = [
+  { label: '전체', value: '전체' },
+  { label: '시', value: 'POETRY' },
+  { label: '산문', value: 'PROSE' },
+  { label: '소설', value: 'NOVEL' },
+  { label: '희곡', value: 'DRAMA' },
+  { label: '수필', value: 'ESSAY' },
+  { label: '역사', value: 'HISTORY' },
+];
+
+const PAGE_SIZE = 20;
 
 export const BookHome: React.FC = () => {
   const { user, logout, isMockMode } = useAuth();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
-  // URL 쿼리 스트링에서 상태 복원
   const genreParam = searchParams.get('genre') || '전체';
   const queryParam = searchParams.get('q') || '';
   const sortParam = searchParams.get('sort') || 'latest';
+  const pageParam = Math.max(0, Number(searchParams.get('page') || '0'));
+  const activeGenre = GENRES.find((genre) => genre.value === genreParam) ?? GENRES[0];
 
   const [books, setBooks] = useState<Book[]>([]);
+  const [pageMeta, setPageMeta] = useState<PageMeta | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  // 검색창 입력값 상태
   const [searchInput, setSearchInput] = useState(queryParam);
 
-  const genres = ['전체', '소설', '희곡'];
+
 
   useEffect(() => {
     const fetchBooksData = async () => {
@@ -31,19 +43,24 @@ export const BookHome: React.FC = () => {
       setError(null);
       try {
         const data = await getBooks(isMockMode, {
-          genre: genreParam,
-          q: queryParam,
+          genre: isMockMode ? activeGenre.label : activeGenre.value,
+          q: queryParam.trim() || undefined,
+          page: pageParam,
+          size: PAGE_SIZE,
+          sort: sortParam,
         });
 
-        // 정렬 조건 적용
-        const sortedData = [...data];
-        if (sortParam === 'latest') {
-          sortedData.sort((a, b) => b.title.localeCompare(a.title));
-        } else if (sortParam === 'popular') {
-          sortedData.sort((a, b) => b.id.localeCompare(a.id));
+        const nextBooks = [...data.books];
+        if (isMockMode) {
+          if (sortParam === 'latest') {
+            nextBooks.sort((a, b) => b.title.localeCompare(a.title));
+          } else if (sortParam === 'popular') {
+            nextBooks.sort((a, b) => (b.bookmarkCount ?? 0) - (a.bookmarkCount ?? 0));
+          }
         }
 
-        setBooks(sortedData);
+        setBooks(nextBooks);
+        setPageMeta(data.meta);
       } catch (err) {
         setError(err instanceof Error ? err.message : '도서 목록을 가져오는 데 실패했습니다.');
       } finally {
@@ -52,38 +69,49 @@ export const BookHome: React.FC = () => {
     };
 
     fetchBooksData();
-  }, [genreParam, queryParam, sortParam, isMockMode]);
+  }, [activeGenre.label, activeGenre.value, pageParam, queryParam, sortParam, isMockMode]);
 
-  // 검색 제출 핸들러
+  const updateParams = (mutate: (nextParams: URLSearchParams) => void) => {
+    const nextParams = new URLSearchParams(searchParams);
+    mutate(nextParams);
+    setSearchParams(nextParams);
+  };
+
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const nextParams = new URLSearchParams(searchParams);
-    if (searchInput.trim()) {
-      nextParams.set('q', searchInput);
-    } else {
-      nextParams.delete('q');
-    }
-    nextParams.set('page', '1');
-    setSearchParams(nextParams);
+    updateParams((nextParams) => {
+      const trimmed = searchInput.trim();
+      if (trimmed) {
+        nextParams.set('q', trimmed);
+      } else {
+        nextParams.delete('q');
+      }
+      nextParams.set('page', '0');
+    });
   };
 
-  // 장르 변경 핸들러
-  const handleGenreChange = (genre: string) => {
-    const nextParams = new URLSearchParams(searchParams);
-    if (genre !== '전체') {
-      nextParams.set('genre', genre);
-    } else {
-      nextParams.delete('genre');
-    }
-    nextParams.set('page', '1');
-    setSearchParams(nextParams);
+  const handleGenreChange = (genre: { label: string; value: string }) => {
+    updateParams((nextParams) => {
+      if (genre.value !== '전체') {
+        nextParams.set('genre', genre.value);
+      } else {
+        nextParams.delete('genre');
+      }
+      nextParams.set('page', '0');
+    });
   };
 
-  // 정렬 변경 핸들러
   const handleSortChange = (sort: string) => {
-    const nextParams = new URLSearchParams(searchParams);
-    nextParams.set('sort', sort);
-    setSearchParams(nextParams);
+    updateParams((nextParams) => {
+      nextParams.set('sort', sort);
+      nextParams.set('page', '0');
+    });
+  };
+
+  const handlePageChange = (page: number) => {
+    updateParams((nextParams) => {
+      nextParams.set('page', String(Math.max(0, page)));
+    });
   };
 
   return (
@@ -127,19 +155,20 @@ export const BookHome: React.FC = () => {
         <div className="glass rounded-2xl p-4 md:p-6 mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
           {/* Genre Tabs */}
           <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0">
-            {genres.map((g) => {
-              const active = genreParam === g;
+            {GENRES.map((genre) => {
+              const active = genreParam === genre.value;
               return (
                 <button
-                  key={g}
-                  onClick={() => handleGenreChange(g)}
+                  key={genre.value}
+                  type="button"
+                  onClick={() => handleGenreChange(genre)}
                   className={`px-4 py-2 rounded-full text-[12px] transition-all font-medium ${
                     active
                       ? 'bg-[#0B0E14] text-white dark:bg-white dark:text-[#0B0E14] shadow-sm'
                       : 'glass-soft text-slate-500 dark:text-white/50 hover:text-slate-800 dark:hover:text-white'
                   }`}
                 >
-                  {g}
+                  {genre.label}
                 </button>
               );
             })}
@@ -157,6 +186,7 @@ export const BookHome: React.FC = () => {
               >
                 <option value="latest">최신순</option>
                 <option value="popular">인기순</option>
+                <option value="title">제목순</option>
               </select>
             </div>
 
@@ -191,43 +221,75 @@ export const BookHome: React.FC = () => {
             <p className="text-slate-400 dark:text-white/30 text-xs mt-1">검색어나 필터를 변경해 다른 명작들을 탐색해 보세요.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 md:gap-8 mb-12">
-            {books.map((book) => (
-              <div
-                key={book.id}
-                onClick={() => navigate(`/books/${book.id}`)}
-                className="glass rounded-2xl p-5 hover:scale-[1.02] active:scale-[0.99] transition-all duration-300 shadow-xl shadow-purple-950/2 dark:shadow-purple-950/10 cursor-pointer flex flex-col relative group"
-              >
-                {/* Book cover area */}
-                <div className="aspect-[4/5] rounded-xl overflow-hidden mb-5 relative bg-slate-900/40 border border-black/5 dark:border-white/5">
-                  <DkCover book={{ id: book.id, title: book.title, author: book.author }} className="w-full h-full object-cover transform group-hover:scale-105 transition duration-500" />
-                </div>
-
-                {/* Title & Author */}
-                <div className="flex-1">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] text-purple-500 dark:text-purple-400 font-mono tracking-wider font-semibold uppercase">{book.genre}</span>
-                    {book.isBookmarked && (
-                      <span className="text-[11px] text-rose-500 dark:text-rose-400 font-semibold flex items-center gap-1 font-sans">
-                        <span className="animate-pulse">❤️</span> 찜함
-                      </span>
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 md:gap-8 mb-8">
+              {books.map((book) => (
+                <div
+                  key={book.id}
+                  onClick={() => navigate(`/books/${book.id}`)}
+                  className="glass rounded-2xl p-5 hover:scale-[1.02] active:scale-[0.99] transition-all duration-300 shadow-xl shadow-purple-950/2 dark:shadow-purple-950/10 cursor-pointer flex flex-col relative group"
+                >
+                  {/* Book cover area */}
+                  <div className="aspect-[4/5] rounded-xl overflow-hidden mb-5 relative bg-slate-900/40 border border-black/5 dark:border-white/5">
+                    {book.coverImageUrl ? (
+                      <img src={book.coverImageUrl} alt={`${book.title} 표지`} className="w-full h-full object-cover transform group-hover:scale-105 transition duration-500" />
+                    ) : (
+                      <DkCover book={{ id: book.id, title: book.title, author: book.author }} className="w-full h-full object-cover transform group-hover:scale-105 transition duration-500" />
                     )}
                   </div>
-                  <h3 className="font-serif text-[17px] font-medium text-slate-800 dark:text-white mt-1 group-hover:text-purple-600 dark:group-hover:text-purple-400 transition">
-                    {book.title}
-                  </h3>
-                  <p className="text-[12px] text-slate-500 dark:text-white/40 font-light mt-0.5">{book.author}</p>
-                </div>
 
-                {/* Badges footer */}
-                <div className="flex flex-wrap items-center gap-1.5 border-t border-black/5 dark:border-white/5 pt-4 mt-4 shrink-0">
-                  {book.hasSummary && <DkBadge kind="요약" size="xs" />}
-                  {book.hasIllust && <DkBadge kind="일러스트" size="xs" />}
-                  {book.hasQuiz && <DkBadge kind="퀴즈" size="xs" />}
+                  {/* Title & Author */}
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] text-purple-500 dark:text-purple-400 font-mono tracking-wider font-semibold uppercase">{book.genre}</span>
+                      {book.isBookmarked && (
+                        <span className="text-[11px] text-rose-500 dark:text-rose-400 font-semibold flex items-center gap-1 font-sans">
+                          <span className="animate-pulse">❤️</span> 찜함
+                        </span>
+                      )}
+                    </div>
+                    <h3 className="font-serif text-[17px] font-medium text-slate-800 dark:text-white mt-1 group-hover:text-purple-600 dark:group-hover:text-purple-400 transition">
+                      {book.title}
+                    </h3>
+                    <p className="text-[12px] text-slate-500 dark:text-white/40 font-light mt-0.5">{book.author}</p>
+                  </div>
+
+                  {/* Badges footer */}
+                  <div className="flex flex-wrap items-center gap-1.5 border-t border-black/5 dark:border-white/5 pt-4 mt-4 shrink-0">
+                    {book.hasSummary && <DkBadge kind="요약" size="xs" />}
+                    {book.hasIllust && <DkBadge kind="일러스트" size="xs" />}
+                    {book.hasQuiz && <DkBadge kind="퀴즈" size="xs" />}
+                  </div>
                 </div>
+              ))}
+            </div>
+
+            {pageMeta && pageMeta.totalPages > 1 && (
+              <div className="flex items-center justify-center gap-3 mb-12">
+                <button
+                  type="button"
+                  disabled={pageMeta.page <= 0}
+                  onClick={() => handlePageChange(pageMeta.page - 1)}
+                  className="glass-soft rounded-full p-2 text-slate-600 dark:text-white/70 disabled:opacity-30 disabled:cursor-not-allowed"
+                  aria-label="이전 페이지"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <span className="text-xs text-slate-500 dark:text-white/45 font-medium">
+                  {pageMeta.page + 1} / {pageMeta.totalPages}
+                </span>
+                <button
+                  type="button"
+                  disabled={!pageMeta.hasNext}
+                  onClick={() => handlePageChange(pageMeta.page + 1)}
+                  className="glass-soft rounded-full p-2 text-slate-600 dark:text-white/70 disabled:opacity-30 disabled:cursor-not-allowed"
+                  aria-label="다음 페이지"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
               </div>
-            ))}
-          </div>
+            )}
+          </>
         )}
       </div>
     </div>

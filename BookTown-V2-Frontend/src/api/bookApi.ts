@@ -5,13 +5,114 @@ export interface Book {
   title: string;
   author: string;
   genre: string;
+  country?: string;
   description: string;
+  coverImageUrl?: string | null;
   isBookmarked: boolean;
   hasSummary: boolean;
   hasIllust: boolean;
   hasQuiz: boolean;
   chapters: string[];
+  bookmarkCount?: number;
 }
+
+export interface PageMeta {
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+  hasNext: boolean;
+}
+
+export interface PagedBooks {
+  books: Book[];
+  meta: PageMeta;
+}
+
+interface ApiResponse<T> {
+  data: T;
+  meta: PageMeta | null;
+}
+
+interface SpringPage<T> {
+  content: T[];
+}
+
+interface BookSummaryDto {
+  id: number;
+  title: string;
+  author: string;
+  genre: string;
+  country: string;
+  coverImageUrl: string | null;
+  bookmarkCount: number;
+}
+
+interface BookDetailDto extends BookSummaryDto {
+  description: string;
+  isBookmarked: boolean | null;
+  availableFeatures: {
+    summary: boolean;
+    illustration: boolean;
+    quiz: boolean;
+  };
+  chapters: Array<{
+    id: number;
+    chapterNumber: number;
+    title: string;
+  }>;
+}
+
+const GENRE_LABELS: Record<string, string> = {
+  POETRY: '시',
+  PROSE: '산문',
+  NOVEL: '소설',
+  DRAMA: '희곡',
+  ESSAY: '수필',
+  HISTORY: '역사',
+};
+
+const toGenreLabel = (genre: string) => GENRE_LABELS[genre] ?? genre;
+
+const toBookSummary = (dto: BookSummaryDto): Book => ({
+  id: String(dto.id),
+  title: dto.title,
+  author: dto.author,
+  genre: toGenreLabel(dto.genre),
+  country: dto.country,
+  description: '',
+  coverImageUrl: dto.coverImageUrl,
+  isBookmarked: false,
+  hasSummary: false,
+  hasIllust: false,
+  hasQuiz: false,
+  chapters: [],
+  bookmarkCount: dto.bookmarkCount,
+});
+
+const toBookDetail = (dto: BookDetailDto): Book => ({
+  id: String(dto.id),
+  title: dto.title,
+  author: dto.author,
+  genre: toGenreLabel(dto.genre),
+  country: dto.country,
+  description: dto.description,
+  coverImageUrl: dto.coverImageUrl,
+  isBookmarked: Boolean(dto.isBookmarked),
+  hasSummary: dto.availableFeatures.summary,
+  hasIllust: dto.availableFeatures.illustration,
+  hasQuiz: dto.availableFeatures.quiz,
+  chapters: dto.chapters.map((chapter) => `${chapter.chapterNumber}. ${chapter.title}`),
+  bookmarkCount: dto.bookmarkCount,
+});
+
+const makeMockMeta = (books: Book[], page: number, size: number): PageMeta => ({
+  page,
+  size,
+  totalElements: books.length,
+  totalPages: Math.max(1, Math.ceil(books.length / size)),
+  hasNext: (page + 1) * size < books.length,
+});
 
 // Mock Data
 export const MOCK_BOOKS: Book[] = [
@@ -101,8 +202,11 @@ const saveMockBookmarkedIds = (ids: string[]) => {
 
 export const getBooks = async (
   isMockMode: boolean,
-  params?: { genre?: string; q?: string }
-): Promise<Book[]> => {
+  params?: { genre?: string; q?: string; page?: number; size?: number; sort?: string }
+): Promise<PagedBooks> => {
+  const page = params?.page ?? 0;
+  const size = params?.size ?? 20;
+
   if (isMockMode) {
     await new Promise((resolve) => setTimeout(resolve, 400));
     const bookmarks = getMockBookmarkedIds();
@@ -122,12 +226,34 @@ export const getBooks = async (
           b.author.toLowerCase().includes(q)
       );
     }
-    return books;
+    return {
+      books,
+      meta: makeMockMeta(books, page, size),
+    };
   }
 
-  // 실제 API 연동
-  const res = await client.get('/books', { params });
-  return res.data.data;
+  const apiParams = { page, size };
+  const res = params?.q
+    ? await client.get<ApiResponse<SpringPage<BookSummaryDto>>>('/books/search', {
+        params: { ...apiParams, q: params.q },
+      })
+    : await client.get<ApiResponse<SpringPage<BookSummaryDto>>>('/books', {
+        params: {
+          ...apiParams,
+          sort: params?.sort ?? 'latest',
+          genre: params?.genre === '전체' ? undefined : params?.genre,
+        },
+      });
+
+  const content = res.data.data.content.map(toBookSummary);
+  const books = params?.q && params.genre && params.genre !== '전체'
+    ? content.filter((book) => book.genre === toGenreLabel(params.genre as string))
+    : content;
+
+  return {
+    books,
+    meta: res.data.meta ?? makeMockMeta(books, page, size),
+  };
 };
 
 export const getBookById = async (
@@ -145,9 +271,8 @@ export const getBookById = async (
     };
   }
 
-  // 실제 API 연동
-  const res = await client.get(`/books/${bookId}`);
-  return res.data.data;
+  const res = await client.get<ApiResponse<BookDetailDto>>(`/books/${bookId}`);
+  return toBookDetail(res.data.data);
 };
 
 export const toggleBookmarkApi = async (
