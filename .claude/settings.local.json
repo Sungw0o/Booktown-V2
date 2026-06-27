@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(gh auth *)",
+      "PowerShell(gh auth *)",
+      "PowerShell(winget install *)",
+      "PowerShell(gh *)",
+      "PowerShell(gh org *)",
+      "PowerShell(gh repo *)",
+      "PowerShell(gh issue *)",
+      "PowerShell($env:PATH = [System.Environment]::GetEnvironmentVariable\\(\"PATH\", \"Machine\"\\) + \";\" + [System.Environment]::GetEnvironmentVariable\\(\"PATH\", \"User\"\\); gh repo view Sungw0o/booktown-v2 --json name,url)",
+      "PowerShell(Out-File *)",
+      "PowerShell(claude config *)",
+      "PowerShell(git *)"
+    ]
+  }
+}
