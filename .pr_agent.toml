@@ -1,0 +1,15 @@
+[config]
+model = "gemini/gemini-2.0-flash"
+language = "ko"
+
+[github_action_config]
+auto_review = true
+auto_describe = true
+auto_improve = false
+
+[pr_reviewer]
+num_code_suggestions = 4
+inline_code_comments = true
+
+[pr_description]
+publish_labels = false
