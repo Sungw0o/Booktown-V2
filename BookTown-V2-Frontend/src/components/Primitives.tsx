@@ -400,6 +400,7 @@ export const DkTopNav: React.FC<DkTopNavProps> = ({ active, go, onLogout, nickna
   const links = [
     { id: 'home',    label: '탐색' },
     { id: 'search',  label: '검색' },
+    { id: 'me',      label: '마이' },
     { id: 'admin',   label: '관리자' },
   ];
   const activeTabs: Record<string, string> = {

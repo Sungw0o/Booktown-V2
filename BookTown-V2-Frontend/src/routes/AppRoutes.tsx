@@ -11,6 +11,7 @@ import Login from '../pages/Login';
 import Signup from '../pages/Signup';
 import BookHome from '../pages/BookHome';
 import BookDetail from '../pages/BookDetail';
+import { MyPage } from '../pages/MyPage';
 import { OAuthSuccess, OAuthFailure } from '../pages/OAuthCallback';
 import { NotFoundPage, ForbiddenPage } from '../pages/ErrorPages';
 import { QuizPage, QuizResultPage } from '../pages/QuizPages';
@@ -51,6 +52,7 @@ const AppRouterBody: React.FC = () => {
           <Route path="/books/:bookId" element={<BookDetail />} />
           <Route path="/books/:bookId/quiz" element={<QuizPage />} />
           <Route path="/books/:bookId/quiz/result" element={<QuizResultPage />} />
+          <Route path="/me" element={<MyPage />} />
           <Route path="/" element={<BookHome />} />
         </Route>
 
