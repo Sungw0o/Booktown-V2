@@ -190,7 +190,7 @@ export const BookDetail: React.FC = () => {
                 </button>
                 <button
                   disabled={!book.hasIllust}
-                  onClick={() => alert(`${book.title} 일러스트 갤러리를 준비하고 있습니다.`)}
+                  onClick={() => navigate(`/books/${book.id}/illustrations`)}
                   className="glass-soft disabled:opacity-30 rounded-xl py-3 text-[11px] font-semibold text-slate-700 dark:text-white hover:bg-black/[0.04] dark:hover:bg-white/[0.06] transition flex flex-col items-center gap-1.5"
                 >
                   <Image className="w-4 h-4 text-amber-500" />
