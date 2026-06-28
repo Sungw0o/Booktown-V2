@@ -81,26 +81,7 @@ public class OpenApiContractConfig {
     }
 
     private void addSummaryContracts(Paths paths) {
-        add(paths, "/books/{bookId}/summaries", PathItem.HttpMethod.POST,
-                operation("Summaries", "AI 요약 생성 요청", "도서 또는 챕터 범위의 RAG 기반 요약 생성 Job을 요청합니다.", true, "SummaryJobResponse")
-                        .addParametersItem(path("bookId", "도서 ID"))
-                        .requestBody(jsonBody("SummaryCreateRequest")));
-        add(paths, "/summary-jobs/{jobId}", PathItem.HttpMethod.GET,
-                operation("Summaries", "요약 생성 Job 조회", "요약 생성 Job 상태와 결과 연결 정보를 조회합니다.", true, "SummaryJobResponse")
-                        .addParametersItem(path("jobId", "Job ID")));
-        add(paths, "/books/{bookId}/summaries", PathItem.HttpMethod.GET,
-                operation("Summaries", "도서 요약 목록 조회", "도서에 생성된 요약 목록을 조회합니다.", true, "SummaryListResponse")
-                        .addParametersItem(path("bookId", "도서 ID")));
-        add(paths, "/summaries/{summaryId}", PathItem.HttpMethod.GET,
-                operation("Summaries", "요약 상세 조회", "요약 본문과 생성 메타데이터를 조회합니다.", true, "SummaryResponse")
-                        .addParametersItem(path("summaryId", "요약 ID")));
-        add(paths, "/summaries/{summaryId}/regenerations", PathItem.HttpMethod.POST,
-                operation("Summaries", "요약 재생성 요청", "기존 요약을 보존하면서 재생성 Job을 요청합니다.", true, "SummaryJobResponse")
-                        .addParametersItem(path("summaryId", "요약 ID")));
-        add(paths, "/summaries/{summaryId}/feedback", PathItem.HttpMethod.PUT,
-                operation("Summaries", "요약 피드백 저장", "요약 품질에 대한 사용자 피드백을 저장합니다.", true, "SummaryFeedbackResponse")
-                        .addParametersItem(path("summaryId", "요약 ID"))
-                        .requestBody(jsonBody("SummaryFeedbackRequest")));
+        // SummaryController로 구현 완료 — 스텁 불필요
     }
 
     private void addSceneContracts(Paths paths) {
