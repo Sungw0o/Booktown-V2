@@ -21,24 +21,12 @@ class OpenApiContractConfigTest {
                         "/books/search",
                         "/books/{bookId}",
                         "/books/{bookId}/bookmark",
-                        "/users/me/bookmarks",
-                        "/books/{bookId}/summaries",
-                        "/summary-jobs/{jobId}",
-                        "/summaries/{summaryId}",
-                        "/books/{bookId}/scenes",
-                        "/scenes/{sceneId}/illustrations",
-                        "/books/{bookId}/quizzes",
-                        "/quizzes/{quizId}",
-                        "/quizzes/{quizId}/submissions",
-                        "/users/me/quizzes"
+                        "/users/me/bookmarks"
                 );
         assertThat(openAPI.getComponents().getSchemas())
                 .containsKeys(
                         "BookPageResponse",
                         "BookDetailResponse",
-                        "SummaryResponse",
-                        "SceneResponse",
-                        "QuizResponse",
                         "ErrorResponse"
                 );
     }

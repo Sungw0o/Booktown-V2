@@ -122,24 +122,7 @@ public class OpenApiContractConfig {
     }
 
     private void addQuizContracts(Paths paths) {
-        add(paths, "/books/{bookId}/quizzes", PathItem.HttpMethod.POST,
-                operation("Quizzes", "객관식 퀴즈 생성 요청", "도서 또는 챕터 범위의 객관식 퀴즈 생성 Job을 요청합니다.", true, "QuizJobResponse")
-                        .addParametersItem(path("bookId", "도서 ID"))
-                        .requestBody(jsonBody("QuizCreateRequest")));
-        add(paths, "/quiz-jobs/{jobId}", PathItem.HttpMethod.GET,
-                operation("Quizzes", "퀴즈 생성 Job 조회", "퀴즈 생성 Job 상태와 결과 연결 정보를 조회합니다.", true, "QuizJobResponse")
-                        .addParametersItem(path("jobId", "Job ID")));
-        add(paths, "/quizzes/{quizId}", PathItem.HttpMethod.GET,
-                operation("Quizzes", "퀴즈 상세 조회", "문항과 선택지를 조회합니다. 정답과 해설은 제출 전 응답에 포함하지 않습니다.", true, "QuizResponse")
-                        .addParametersItem(path("quizId", "퀴즈 ID")));
-        add(paths, "/quizzes/{quizId}/submissions", PathItem.HttpMethod.POST,
-                operation("Quizzes", "퀴즈 제출 및 채점", "사용자 답안을 제출하고 서버 채점 결과를 반환합니다.", true, "QuizSubmissionResponse")
-                        .addParametersItem(path("quizId", "퀴즈 ID"))
-                        .requestBody(jsonBody("QuizSubmissionRequest")));
-        add(paths, "/users/me/quizzes", PathItem.HttpMethod.GET,
-                operation("Quizzes", "내 퀴즈 히스토리 조회", "로그인 사용자의 퀴즈 생성/제출 히스토리를 조회합니다.", true, "UserQuizHistoryResponse")
-                        .addParametersItem(query("page", "페이지 번호(0부터 시작)", int32()))
-                        .addParametersItem(query("size", "페이지 크기", int32())));
+        // QuizController로 구현 완료 — 스텁 불필요
     }
 
     private Operation operation(String tag, String summary, String description, boolean secured, String responseSchema) {

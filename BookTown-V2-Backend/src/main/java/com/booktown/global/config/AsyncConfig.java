@@ -21,4 +21,15 @@ public class AsyncConfig {
         executor.initialize();
         return executor;
     }
+
+    @Bean(name = "quizProcessingExecutor")
+    public Executor quizProcessingExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(2);
+        executor.setMaxPoolSize(4);
+        executor.setQueueCapacity(20);
+        executor.setThreadNamePrefix("quiz-proc-");
+        executor.initialize();
+        return executor;
+    }
 }
