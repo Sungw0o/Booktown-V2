@@ -4,8 +4,10 @@ import com.booktown.domain.admin.entity.ContentJob;
 import com.booktown.domain.admin.repository.ContentJobRepository;
 import com.booktown.domain.book.entity.Book;
 import com.booktown.domain.book.entity.Chapter;
+import com.booktown.domain.book.entity.Scene;
 import com.booktown.domain.book.repository.BookRepository;
 import com.booktown.domain.book.repository.ChapterRepository;
+import com.booktown.domain.book.repository.SceneRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
@@ -24,6 +26,7 @@ import java.util.regex.Pattern;
 public class ContentProcessor {
 
     private static final int MAX_CHUNK_SIZE = 5000;
+    private static final int SCENE_EXCERPT_LENGTH = 300;
     private static final Pattern CHAPTER_PATTERN = Pattern.compile(
             "(?m)^(제\\s*\\d+\\s*장[^\n]*|Chapter\\s+\\d+[^\n]*|CHAPTER\\s+[IVX\\d]+[^\n]*|\\d+\\.\\s+[^\n]+)$"
     );
@@ -31,6 +34,7 @@ public class ContentProcessor {
     private final ContentJobRepository contentJobRepository;
     private final BookRepository bookRepository;
     private final ChapterRepository chapterRepository;
+    private final SceneRepository sceneRepository;
 
     @Async("contentProcessingExecutor")
     @Transactional
@@ -49,17 +53,34 @@ public class ContentProcessor {
                 chapters.add(Chapter.create(book, i + 1, segments.get(i).title(), segments.get(i).content()));
             }
             chapterRepository.saveAll(chapters);
+
+            List<Scene> scenes = new ArrayList<>(chapters.size());
+            for (int i = 0; i < chapters.size(); i++) {
+                Chapter chapter = chapters.get(i);
+                String excerpt = buildExcerpt(chapter.getContent());
+                scenes.add(Scene.create(book, chapter, chapter.getTitle(), excerpt, i + 1));
+            }
+            sceneRepository.saveAll(scenes);
+
             book.markContentUploaded();
             bookRepository.save(book);
 
             job.markCompleted(chapters.size());
             contentJobRepository.save(job);
-            log.info("ContentJob {} completed: {} chapters", jobId, chapters.size());
+            log.info("ContentJob {} completed: {} chapters, {} scenes", jobId, chapters.size(), scenes.size());
         } catch (Exception e) {
             log.error("ContentJob {} failed: {}", jobId, e.getMessage(), e);
             job.markFailed(e.getMessage(), true);
             contentJobRepository.save(job);
         }
+    }
+
+    private String buildExcerpt(String content) {
+        if (content == null || content.isBlank()) return "";
+        String trimmed = content.trim();
+        return trimmed.length() <= SCENE_EXCERPT_LENGTH
+                ? trimmed
+                : trimmed.substring(0, SCENE_EXCERPT_LENGTH) + "...";
     }
 
     private List<ChapterSegment> parseChapters(String text) {

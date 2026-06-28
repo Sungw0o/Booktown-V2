@@ -39,6 +39,13 @@ public enum ErrorCode {
     FILE_TOO_LARGE(HttpStatus.PAYLOAD_TOO_LARGE, "파일 크기는 10MB를 초과할 수 없습니다."),
     FILE_ENCODING_INVALID(HttpStatus.BAD_REQUEST, "UTF-8로 인코딩된 파일만 업로드할 수 있습니다."),
 
+    // 장면 일러스트
+    SCENE_NOT_FOUND(HttpStatus.NOT_FOUND, "장면을 찾을 수 없습니다."),
+    ILLUSTRATION_JOB_NOT_FOUND(HttpStatus.NOT_FOUND, "일러스트 생성 Job을 찾을 수 없습니다."),
+    ILLUSTRATION_NOT_FOUND(HttpStatus.NOT_FOUND, "일러스트를 찾을 수 없습니다."),
+    DUPLICATE_ILLUSTRATION_JOB(HttpStatus.CONFLICT, "이미 진행 중인 일러스트 생성 Job이 있습니다."),
+    ILLUSTRATION_RATE_LIMIT_EXCEEDED(HttpStatus.TOO_MANY_REQUESTS, "일러스트 생성 요청 한도를 초과했습니다."),
+
     // AI
     AI_SERVICE_ERROR(HttpStatus.BAD_GATEWAY, "외부 AI 서비스 오류가 발생했습니다.");
 

@@ -22,11 +22,6 @@ class OpenApiContractConfigTest {
                         "/books/{bookId}",
                         "/books/{bookId}/bookmark",
                         "/users/me/bookmarks",
-                        "/books/{bookId}/summaries",
-                        "/summary-jobs/{jobId}",
-                        "/summaries/{summaryId}",
-                        "/books/{bookId}/scenes",
-                        "/scenes/{sceneId}/illustrations",
                         "/books/{bookId}/quizzes",
                         "/quizzes/{quizId}",
                         "/quizzes/{quizId}/submissions",
@@ -36,7 +31,6 @@ class OpenApiContractConfigTest {
                 .containsKeys(
                         "BookPageResponse",
                         "BookDetailResponse",
-                        "SummaryResponse",
                         "SceneResponse",
                         "QuizResponse",
                         "ErrorResponse"

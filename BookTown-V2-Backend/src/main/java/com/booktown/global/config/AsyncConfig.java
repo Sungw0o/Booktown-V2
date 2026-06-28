@@ -21,4 +21,15 @@ public class AsyncConfig {
         executor.initialize();
         return executor;
     }
+
+    @Bean(name = "illustrationProcessingExecutor")
+    public Executor illustrationProcessingExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(2);
+        executor.setMaxPoolSize(4);
+        executor.setQueueCapacity(15);
+        executor.setThreadNamePrefix("illus-proc-");
+        executor.initialize();
+        return executor;
+    }
 }
