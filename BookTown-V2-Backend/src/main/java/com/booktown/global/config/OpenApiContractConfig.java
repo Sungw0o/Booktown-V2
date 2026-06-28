@@ -77,16 +77,7 @@ public class OpenApiContractConfig {
     }
 
     private void addAdminContentContracts(Paths paths) {
-        add(paths, "/admin/books", PathItem.HttpMethod.POST,
-                operation("Admin Books", "관리자 도서 등록", "관리자가 도서 메타데이터를 등록합니다.", true, "AdminBookResponse")
-                        .requestBody(jsonBody("AdminBookCreateRequest")));
-        add(paths, "/admin/books/{bookId}/contents", PathItem.HttpMethod.POST,
-                operation("Admin Contents", "원문 TXT 업로드", "관리자가 원문 TXT 파일을 업로드하고 처리 Job을 생성합니다.", true, "ContentJobResponse")
-                        .addParametersItem(path("bookId", "도서 ID"))
-                        .requestBody(multipartContentBody()));
-        add(paths, "/admin/content-jobs/{jobId}", PathItem.HttpMethod.GET,
-                operation("Admin Contents", "원문 처리 Job 조회", "원문 업로드 후 챕터/chunk 처리 상태를 조회합니다.", true, "ContentJobResponse")
-                        .addParametersItem(path("jobId", "Job ID")));
+        // AdminBookController로 구현 완료 — 스텁 불필요
     }
 
     private void addSummaryContracts(Paths paths) {

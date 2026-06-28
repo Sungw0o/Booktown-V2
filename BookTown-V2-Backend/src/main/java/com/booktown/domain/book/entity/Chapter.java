@@ -40,14 +40,18 @@ public class Chapter {
     @Column(nullable = false, length = 200)
     private String title;
 
+    @Column(columnDefinition = "LONGTEXT")
+    private String content;
+
     @Column(nullable = false)
     private LocalDateTime createdAt;
 
-    public static Chapter create(Book book, int chapterNumber, String title) {
+    public static Chapter create(Book book, int chapterNumber, String title, String content) {
         Chapter chapter = new Chapter();
         chapter.book = book;
         chapter.chapterNumber = chapterNumber;
         chapter.title = title;
+        chapter.content = content;
         return chapter;
     }
 

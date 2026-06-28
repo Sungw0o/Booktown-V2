@@ -32,6 +32,13 @@ public enum ErrorCode {
     // 도서
     BOOK_NOT_FOUND(HttpStatus.NOT_FOUND, "도서를 찾을 수 없습니다."),
 
+    // 관리자 / 콘텐츠 업로드
+    BOOK_CONTENT_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 원문이 업로드된 도서입니다."),
+    CONTENT_JOB_NOT_FOUND(HttpStatus.NOT_FOUND, "콘텐츠 처리 Job을 찾을 수 없습니다."),
+    INVALID_FILE_TYPE(HttpStatus.BAD_REQUEST, "TXT 파일만 업로드할 수 있습니다."),
+    FILE_TOO_LARGE(HttpStatus.PAYLOAD_TOO_LARGE, "파일 크기는 10MB를 초과할 수 없습니다."),
+    FILE_ENCODING_INVALID(HttpStatus.BAD_REQUEST, "UTF-8로 인코딩된 파일만 업로드할 수 있습니다."),
+
     // AI
     AI_SERVICE_ERROR(HttpStatus.BAD_GATEWAY, "외부 AI 서비스 오류가 발생했습니다.");
 
