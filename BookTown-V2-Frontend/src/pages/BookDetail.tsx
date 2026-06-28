@@ -104,6 +104,8 @@ export const BookDetail: React.FC = () => {
         go={(tab) => {
           if (tab === 'home') {
             navigate('/');
+          } else if (tab === 'me') {
+            navigate('/me');
           } else if (tab === 'admin') {
             navigate('/admin');
           } else {
