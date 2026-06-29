@@ -53,6 +53,13 @@ public enum ErrorCode {
     QUIZ_NOT_FOUND(HttpStatus.NOT_FOUND, "퀴즈를 찾을 수 없습니다."),
     QUIZ_ALREADY_SUBMITTED(HttpStatus.CONFLICT, "이미 제출한 퀴즈입니다."),
 
+    // 장면 일러스트
+    SCENE_NOT_FOUND(HttpStatus.NOT_FOUND, "장면을 찾을 수 없습니다."),
+    ILLUSTRATION_JOB_NOT_FOUND(HttpStatus.NOT_FOUND, "일러스트 생성 Job을 찾을 수 없습니다."),
+    ILLUSTRATION_NOT_FOUND(HttpStatus.NOT_FOUND, "일러스트를 찾을 수 없습니다."),
+    DUPLICATE_ILLUSTRATION_JOB(HttpStatus.CONFLICT, "이미 진행 중인 일러스트 생성 Job이 있습니다."),
+    ILLUSTRATION_RATE_LIMIT_EXCEEDED(HttpStatus.TOO_MANY_REQUESTS, "일러스트 생성 요청 한도를 초과했습니다."),
+
     // AI
     AI_SERVICE_ERROR(HttpStatus.BAD_GATEWAY, "외부 AI 서비스 오류가 발생했습니다.");
 
