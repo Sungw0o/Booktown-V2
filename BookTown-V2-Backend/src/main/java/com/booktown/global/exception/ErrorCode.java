@@ -31,6 +31,7 @@ public enum ErrorCode {
 
     // 도서
     BOOK_NOT_FOUND(HttpStatus.NOT_FOUND, "도서를 찾을 수 없습니다."),
+    BOOK_CONTENT_NOT_READY(HttpStatus.CONFLICT, "도서 원문이 아직 처리되지 않았습니다."),
 
     // 관리자 / 콘텐츠 업로드
     BOOK_CONTENT_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 원문이 업로드된 도서입니다."),
@@ -42,11 +43,17 @@ public enum ErrorCode {
     // AI 요약
     SUMMARY_JOB_NOT_FOUND(HttpStatus.NOT_FOUND, "요약 Job을 찾을 수 없습니다."),
     SUMMARY_NOT_FOUND(HttpStatus.NOT_FOUND, "요약을 찾을 수 없습니다."),
-    BOOK_CONTENT_NOT_READY(HttpStatus.CONFLICT, "도서 원문이 아직 처리되지 않았습니다."),
     DUPLICATE_SUMMARY_JOB(HttpStatus.CONFLICT, "이미 진행 중인 요약 Job이 있습니다."),
     SUMMARY_RATE_LIMIT_EXCEEDED(HttpStatus.TOO_MANY_REQUESTS, "요약 생성 요청 한도를 초과했습니다."),
     SUMMARY_ACCESS_DENIED(HttpStatus.FORBIDDEN, "해당 요약에 대한 접근 권한이 없습니다."),
     SUMMARY_FEEDBACK_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 피드백을 남긴 요약입니다."),
+
+    // 장면 일러스트
+    SCENE_NOT_FOUND(HttpStatus.NOT_FOUND, "장면을 찾을 수 없습니다."),
+    ILLUSTRATION_JOB_NOT_FOUND(HttpStatus.NOT_FOUND, "일러스트 생성 Job을 찾을 수 없습니다."),
+    ILLUSTRATION_NOT_FOUND(HttpStatus.NOT_FOUND, "일러스트를 찾을 수 없습니다."),
+    DUPLICATE_ILLUSTRATION_JOB(HttpStatus.CONFLICT, "이미 진행 중인 일러스트 생성 Job이 있습니다."),
+    ILLUSTRATION_RATE_LIMIT_EXCEEDED(HttpStatus.TOO_MANY_REQUESTS, "일러스트 생성 요청 한도를 초과했습니다."),
 
     // AI
     AI_SERVICE_ERROR(HttpStatus.BAD_GATEWAY, "외부 AI 서비스 오류가 발생했습니다.");
