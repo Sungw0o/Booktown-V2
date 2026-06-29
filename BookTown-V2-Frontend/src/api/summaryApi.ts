@@ -2,12 +2,11 @@ import client from './client';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
-export type SummaryLevel = 'SIMPLE' | 'STANDARD' | 'DETAILED';
-export type SummaryLength = 'SHORT' | 'MEDIUM' | 'LONG';
 export type SummaryJobStatus = 'QUEUED' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
 
 export interface SummaryJob {
   jobId: number;
+  bookId: number;
   status: SummaryJobStatus;
   summaryId: string | null;
   errorMessage: string | null;
@@ -16,85 +15,79 @@ export interface SummaryJob {
   updatedAt: string;
 }
 
+export interface FeedbackInfo {
+  rating: number;
+  comment: string | null;
+}
+
 export interface Summary {
   summaryId: string;
   bookId: number;
-  chapterId: number;
-  level: SummaryLevel;
-  length: SummaryLength;
   content: string;
-  keyPoints: string[];
-  characters: string[];
-  helpful: boolean | null;
+  isRegeneration: boolean;
+  feedback: FeedbackInfo | null;
   createdAt: string;
 }
 
 interface ApiResponse<T> {
   data: T;
-  meta: PageMeta | null;
+  meta: null;
 }
 
-interface PageMeta {
-  page: number;
-  size: number;
-  totalElements: number;
-  totalPages: number;
-  hasNext: boolean;
-}
+// ─── Mock Data ────────────────────────────────────────────────────────────────
 
-export interface PagedSummaries {
-  summaries: Summary[];
-  meta: PageMeta;
-}
+const MOCK_SUMMARY_CONTENT = `## 오만과 편견 — AI 요약
 
-// ─── Level / Length metadata ─────────────────────────────────────────────────
+### 핵심 줄거리
 
-export const LEVEL_META: Record<SummaryLevel, { label: string; desc: string }> = {
-  SIMPLE: { label: '간단', desc: '핵심 줄거리만 한눈에' },
-  STANDARD: { label: '표준', desc: '주요 사건과 인물 포함' },
-  DETAILED: { label: '상세', desc: '등장인물·주제·상징 분석' },
-};
+영국 시골 마을 롱번에 사는 베넷 가문에는 다섯 딸이 있다. 어머니 베넷 부인은 딸들을 좋은 집안에 시집보내는 것을 인생 목표로 삼는다. 부유한 청년 빙리 씨가 이웃 네더필드에 이사 오고, 그의 친구 다아시도 함께 나타난다.
 
-export const LENGTH_META: Record<SummaryLength, { label: string; desc: string }> = {
-  SHORT: { label: '짧게', desc: '200자 내외' },
-  MEDIUM: { label: '보통', desc: '500자 내외' },
-  LONG: { label: '길게', desc: '1,000자 내외' },
-};
+둘째 딸 엘리자베스는 다아시의 오만한 태도에 반감을 품지만, 다아시는 점차 그녀에게 매력을 느낀다. 한편 위컴이라는 매력적인 장교가 나타나 다아시에 대한 거짓 이야기로 엘리자베스의 편견을 강화시킨다.
 
-// ─── Mock Data ───────────────────────────────────────────────────────────────
+다아시의 첫 번째 청혼은 엘리자베스에게 거절당하고, 이후 그가 보낸 편지를 통해 엘리자베스는 자신의 편견을 돌아보게 된다. 펨벌리 방문과 리디아의 위컴과의 도피 사건을 거치면서 두 사람은 서로를 이해하고 사랑으로 맺어진다.
+
+### 주요 인물
+
+- **엘리자베스 베넷**: 총명하고 독립적인 주인공. 편견을 극복하고 성장한다.
+- **피츠윌리엄 다아시**: 오만하지만 진실한 내면을 가진 부유한 신사.
+- **제인 베넷**: 착하고 낙관적인 첫째 딸. 빙리와 사랑에 빠진다.
+- **찰스 빙리**: 다아시의 친구로 온화하고 친절한 성격.
+- **위컴**: 겉으로는 매력적이지만 실제로는 간교한 인물.
+
+### 주제
+
+이 소설의 핵심 주제는 **오만(Pride)과 편견(Prejudice)**이다. 다아시의 계급적 오만함과 엘리자베스의 첫인상에 기반한 편견이 두 사람의 사랑을 가로막지만, 성찰과 이해를 통해 극복된다. 오스틴은 18세기 영국 사회의 계급 제도와 결혼에 대한 사회적 압력을 풍자적으로 묘사한다.`;
 
 let mockJobIdCounter = 200;
-const MOCK_JOBS: Map<number, SummaryJob> = new Map();
-const MOCK_SUMMARIES: Map<string, Summary> = new Map();
-
-const MOCK_SUMMARY_CONTENTS: Record<number, string> = {
-  1: '엘리자베스 베넷과 다아시 씨의 첫 만남은 무도회에서 이루어진다. 다아시는 오만한 태도로 엘리자베스를 무시하고, 이는 두 사람 사이에 깊은 편견을 심어준다. 빙리 씨와 제인의 관계가 싹트는 사이, 엘리자베스는 다아시에 대한 반감을 키워간다.',
-  2: '위컴 씨가 등장하여 다아시에 대한 부정적인 이야기를 전한다. 엘리자베스는 그의 말을 믿고 다아시에 대한 편견을 더욱 굳힌다. 한편 빙리 씨 일행이 네더필드를 떠나며 제인의 희망이 꺾인다.',
-  3: '콜린스 씨의 청혼을 거절한 엘리자베스는 루카스 집안의 샬럿이 그와 결혼하는 것을 목격한다. 다아시의 첫 번째 청혼을 엘리자베스가 단호히 거절하고, 다아시는 위컴에 관한 진실을 담은 편지를 남긴다.',
-};
-
-const MOCK_KEY_POINTS: string[] = [
-  '첫인상과 편견이 관계에 미치는 영향',
-  '사회적 계급과 결혼의 관계',
-  '등장인물의 성격 대비와 성장',
-];
-
-const MOCK_CHARACTERS: string[] = ['엘리자베스 베넷', '다아시 씨', '제인 베넷', '빙리 씨', '위컴 씨'];
+const MOCK_JOBS = new Map<number, SummaryJob>();
+const MOCK_SUMMARIES = new Map<number, Summary[]>();
 
 // ─── API Functions ────────────────────────────────────────────────────────────
 
 export const createSummary = async (
   isMockMode: boolean,
   bookId: string | number,
-  chapterId: number,
-  level: SummaryLevel = 'STANDARD',
-  length: SummaryLength = 'MEDIUM',
+  scope?: string,
 ): Promise<SummaryJob> => {
   if (isMockMode) {
     await new Promise((r) => setTimeout(r, 500));
+
+    // 409 시뮬레이션: 이미 QUEUED/PROCESSING 중인 Job이 있으면 에러
+    const existing = Array.from(MOCK_JOBS.values()).find(
+      (j) =>
+        j.bookId === Number(bookId) &&
+        (j.status === 'QUEUED' || j.status === 'PROCESSING'),
+    );
+    if (existing) {
+      const err = new Error('이미 진행 중인 요약이 있습니다.');
+      (err as Error & { response: { status: number } }).response = { status: 409 };
+      throw err;
+    }
+
     const jobId = mockJobIdCounter++;
     const job: SummaryJob = {
       jobId,
+      bookId: Number(bookId),
       status: 'QUEUED',
       summaryId: null,
       errorMessage: null,
@@ -104,16 +97,18 @@ export const createSummary = async (
     };
     MOCK_JOBS.set(jobId, job);
 
-    // 비동기 완료 시뮬레이션
+    // 2초 후 PROCESSING, 7초 후 COMPLETED
     setTimeout(() => {
       const j = MOCK_JOBS.get(jobId);
       if (j) MOCK_JOBS.set(jobId, { ...j, status: 'PROCESSING', updatedAt: new Date().toISOString() });
-      setTimeout(() => {
-        const j2 = MOCK_JOBS.get(jobId);
-        if (!j2) return;
+    }, 2000);
+
+    setTimeout(() => {
+      const j = MOCK_JOBS.get(jobId);
+      if (j) {
         const summaryId = `mock-summary-${jobId}`;
         MOCK_JOBS.set(jobId, {
-          ...j2,
+          ...j,
           status: 'COMPLETED',
           summaryId,
           updatedAt: new Date().toISOString(),
@@ -121,25 +116,22 @@ export const createSummary = async (
         const summary: Summary = {
           summaryId,
           bookId: Number(bookId),
-          chapterId,
-          level,
-          length,
-          content: MOCK_SUMMARY_CONTENTS[chapterId] ?? '이 챕터의 주요 사건이 전개됩니다.',
-          keyPoints: MOCK_KEY_POINTS,
-          characters: MOCK_CHARACTERS,
-          helpful: null,
+          content: MOCK_SUMMARY_CONTENT + (scope ? `\n\n> 범위: ${scope}` : ''),
+          isRegeneration: false,
+          feedback: null,
           createdAt: new Date().toISOString(),
         };
-        MOCK_SUMMARIES.set(summaryId, summary);
-      }, 4000);
-    }, 2000);
+        const list = MOCK_SUMMARIES.get(Number(bookId)) ?? [];
+        MOCK_SUMMARIES.set(Number(bookId), [summary, ...list]);
+      }
+    }, 7000);
 
     return job;
   }
 
   const res = await client.post<ApiResponse<SummaryJob>>(
     `/books/${bookId}/summaries`,
-    { chapterId, level, length },
+    scope ? { scope } : {},
   );
   return res.data.data;
 };
@@ -149,81 +141,63 @@ export const getSummaryJob = async (
   jobId: number,
 ): Promise<SummaryJob> => {
   if (isMockMode) {
-    await new Promise((r) => setTimeout(r, 200));
+    await new Promise((r) => setTimeout(r, 150));
     const job = MOCK_JOBS.get(jobId);
     if (!job) throw new Error('Job을 찾을 수 없습니다.');
     return job;
   }
 
-  const res = await client.get<ApiResponse<SummaryJob>>(`/summary-jobs/${jobId}`);
+  const res = await client.get<ApiResponse<SummaryJob>>(
+    `/summary-jobs/${jobId}`,
+  );
   return res.data.data;
 };
 
-export const getSummaryList = async (
+export const getSummaries = async (
   isMockMode: boolean,
   bookId: string | number,
-  page = 0,
-  size = 20,
-): Promise<PagedSummaries> => {
+): Promise<Summary[]> => {
   if (isMockMode) {
     await new Promise((r) => setTimeout(r, 300));
-    const all = Array.from(MOCK_SUMMARIES.values()).filter(
-      (s) => s.bookId === Number(bookId),
-    );
-    const start = page * size;
-    const sliced = all.slice(start, start + size);
-    return {
-      summaries: sliced,
-      meta: {
-        page,
-        size,
-        totalElements: all.length,
-        totalPages: Math.ceil(all.length / size),
-        hasNext: start + size < all.length,
-      },
-    };
+    return MOCK_SUMMARIES.get(Number(bookId)) ?? [];
   }
 
   const res = await client.get<ApiResponse<Summary[]>>(
     `/books/${bookId}/summaries`,
-    { params: { page, size } },
   );
-  const content = res.data.data;
-  const meta = res.data.meta ?? {
-    page,
-    size,
-    totalElements: content.length,
-    totalPages: 1,
-    hasNext: false,
-  };
-  return { summaries: content, meta };
+  return res.data.data;
 };
 
-export const getSummaryDetail = async (
+export const getSummary = async (
   isMockMode: boolean,
   summaryId: string,
 ): Promise<Summary> => {
   if (isMockMode) {
     await new Promise((r) => setTimeout(r, 200));
-    const summary = MOCK_SUMMARIES.get(summaryId);
-    if (!summary) throw new Error('요약을 찾을 수 없습니다.');
-    return summary;
+    for (const list of MOCK_SUMMARIES.values()) {
+      const found = list.find((s) => s.summaryId === summaryId);
+      if (found) return found;
+    }
+    throw new Error('요약을 찾을 수 없습니다.');
   }
 
-  const res = await client.get<ApiResponse<Summary>>(`/summaries/${summaryId}`);
+  const res = await client.get<ApiResponse<Summary>>(
+    `/summaries/${summaryId}`,
+  );
   return res.data.data;
 };
 
 export const regenerateSummary = async (
   isMockMode: boolean,
   summaryId: string,
+  bookId: number,
 ): Promise<SummaryJob> => {
   if (isMockMode) {
     await new Promise((r) => setTimeout(r, 500));
     const jobId = mockJobIdCounter++;
-    const existing = MOCK_SUMMARIES.get(summaryId);
     const job: SummaryJob = {
       jobId,
+      bookId,
       status: 'QUEUED',
       summaryId: null,
       errorMessage: null,
@@ -234,22 +208,27 @@ export const regenerateSummary = async (
     MOCK_JOBS.set(jobId, job);
 
     setTimeout(() => {
-      const newSummaryId = `mock-regen-${jobId}`;
-      MOCK_JOBS.set(jobId, {
-        ...job,
-        status: 'COMPLETED',
-        summaryId: newSummaryId,
-        updatedAt: new Date().toISOString(),
-      });
-      if (existing) {
-        MOCK_SUMMARIES.set(newSummaryId, {
-          ...existing,
+      const j = MOCK_JOBS.get(jobId);
+      if (j) {
+        const newSummaryId = `mock-regen-${jobId}`;
+        MOCK_JOBS.set(jobId, {
+          ...j,
+          status: 'COMPLETED',
           summaryId: newSummaryId,
-          content: existing.content + '\n\n[재생성된 요약] 새로운 관점으로 재해석되었습니다.',
-          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
         });
+        const regenSummary: Summary = {
+          summaryId: newSummaryId,
+          bookId,
+          content: MOCK_SUMMARY_CONTENT + '\n\n> ♻️ 재생성된 요약입니다.',
+          isRegeneration: true,
+          feedback: null,
+          createdAt: new Date().toISOString(),
+        };
+        const list = MOCK_SUMMARIES.get(bookId) ?? [];
+        MOCK_SUMMARIES.set(bookId, [regenSummary, ...list]);
       }
-    }, 5000);
+    }, 6000);
 
     return job;
   }
@@ -260,17 +239,26 @@ export const regenerateSummary = async (
   return res.data.data;
 };
 
-export const sendFeedback = async (
+export const saveFeedback = async (
   isMockMode: boolean,
   summaryId: string,
-  helpful: boolean,
+  rating: number,
+  comment?: string,
 ): Promise<void> => {
   if (isMockMode) {
-    await new Promise((r) => setTimeout(r, 200));
-    const s = MOCK_SUMMARIES.get(summaryId);
-    if (s) MOCK_SUMMARIES.set(summaryId, { ...s, helpful });
+    await new Promise((r) => setTimeout(r, 300));
+    for (const [bookId, list] of MOCK_SUMMARIES.entries()) {
+      const idx = list.findIndex((s) => s.summaryId === summaryId);
+      if (idx !== -1) {
+        const updated = { ...list[idx], feedback: { rating, comment: comment ?? null } };
+        const newList = [...list];
+        newList[idx] = updated;
+        MOCK_SUMMARIES.set(bookId, newList);
+        return;
+      }
+    }
     return;
   }
 
-  await client.put(`/summaries/${summaryId}/feedback`, { helpful });
+  await client.put(`/summaries/${summaryId}/feedback`, { rating, comment });
 };

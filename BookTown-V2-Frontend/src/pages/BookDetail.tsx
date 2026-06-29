@@ -233,4 +233,3 @@ export const BookDetail: React.FC = () => {
 };
 
 export default BookDetail;
-                              

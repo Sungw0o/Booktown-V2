@@ -78,4 +78,11 @@ const AppRoutes: React.FC = () => {
   return (
     <AuthProvider>
       <ThemeProvider>
-   
+        <CustomCursor />
+        <AppRouterBody />
+      </ThemeProvider>
+    </AuthProvider>
+  );
+};
+
+export default AppRoutes;
