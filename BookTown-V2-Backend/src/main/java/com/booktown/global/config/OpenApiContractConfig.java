@@ -85,10 +85,23 @@ public class OpenApiContractConfig {
     }
 
     private void addSceneContracts(Paths paths) {
-        // IllustrationController로 구현 완료 — 스텁 불필요
+        add(paths, "/books/{bookId}/scenes", PathItem.HttpMethod.GET,
+                operation("Scenes", "도서 장면 목록 조회", "도서에서 추출된 주요 장면 목록을 조회합니다.", true, "SceneListResponse")
+                        .addParametersItem(path("bookId", "도서 ID"))
+                        .addParametersItem(query("page", "페이지 번호(0부터 시작)", int32()))
+                        .addParametersItem(query("size", "페이지 크기", int32())));
+        add(paths, "/scenes/{sceneId}/illustrations", PathItem.HttpMethod.POST,
+                operation("Illustrations", "장면 일러스트 생성 요청", "선택한 장면의 이미지 생성 Job을 요청합니다.", true, "IllustrationJobResponse")
+                        .addParametersItem(path("sceneId", "장면 ID"))
+                        .requestBody(jsonBody("IllustrationCreateRequest")));
+        add(paths, "/illustration-jobs/{jobId}", PathItem.HttpMethod.GET,
+                operation("Illustrations", "일러스트 생성 Job 조회", "이미지 생성 Job 상태와 결과 연결 정보를 조회합니다.", true, "IllustrationJobResponse")
+                        .addParametersItem(path("jobId", "Job ID")));
+        add(paths, "/illustrations/{illustrationId}/regenerations", PathItem.HttpMethod.POST,
+                operation("Illustrations", "일러스트 재생성 요청", "기존 이미지를 보존하면서 재생성 Job을 요청합니다.", true, "IllustrationJobResponse")
+                        .addParametersItem(path("illustrationId", "일러스트 ID")));
     }
 
-    
     private void addQuizContracts(Paths paths) {
         add(paths, "/books/{bookId}/quizzes", PathItem.HttpMethod.POST,
                 operation("Quizzes", "객관식 퀴즈 생성 요청", "도서 또는 챕터 범위의 객관식 퀴즈 생성 Job을 요청합니다.", true, "QuizJobResponse")
