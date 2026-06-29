@@ -182,7 +182,7 @@ export const BookDetail: React.FC = () => {
               <div className="grid grid-cols-3 gap-2 mt-8 border-t border-black/5 dark:border-white/5 pt-6">
                 <button
                   disabled={!book.hasSummary}
-                  onClick={() => alert(`${book.title} AI 요약 생성을 준비하고 있습니다.`)}
+                  onClick={() => navigate(`/books/${book.id}/summaries`)}
                   className="glass-soft disabled:opacity-30 rounded-xl py-3 text-[11px] font-semibold text-slate-700 dark:text-white hover:bg-black/[0.04] dark:hover:bg-white/[0.06] transition flex flex-col items-center gap-1.5"
                 >
                   <FileText className="w-4 h-4 text-blue-500" />

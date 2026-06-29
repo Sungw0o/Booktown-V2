@@ -16,6 +16,7 @@ import { OAuthSuccess, OAuthFailure } from '../pages/OAuthCallback';
 import { NotFoundPage, ForbiddenPage } from '../pages/ErrorPages';
 import { QuizPage, QuizResultPage } from '../pages/QuizPages';
 import IllustrationGallery from '../pages/IllustrationGallery';
+import SummaryPage from '../pages/SummaryPage';
 import { CustomCursor } from '../components/Primitives';
 
 
@@ -54,6 +55,7 @@ const AppRouterBody: React.FC = () => {
           <Route path="/books/:bookId/quiz" element={<QuizPage />} />
           <Route path="/books/:bookId/quiz/result" element={<QuizResultPage />} />
           <Route path="/books/:bookId/illustrations" element={<IllustrationGallery />} />
+          <Route path="/books/:bookId/summaries" element={<SummaryPage />} />
           <Route path="/me" element={<MyPage />} />
           <Route path="/" element={<BookHome />} />
         </Route>
