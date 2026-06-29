@@ -48,6 +48,11 @@ public enum ErrorCode {
     SUMMARY_ACCESS_DENIED(HttpStatus.FORBIDDEN, "해당 요약에 대한 접근 권한이 없습니다."),
     SUMMARY_FEEDBACK_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 피드백을 남긴 요약입니다."),
 
+    // 퀴즈
+    QUIZ_JOB_NOT_FOUND(HttpStatus.NOT_FOUND, "퀴즈 생성 Job을 찾을 수 없습니다."),
+    QUIZ_NOT_FOUND(HttpStatus.NOT_FOUND, "퀴즈를 찾을 수 없습니다."),
+    QUIZ_ALREADY_SUBMITTED(HttpStatus.CONFLICT, "이미 제출한 퀴즈입니다."),
+
     // 장면 일러스트
     SCENE_NOT_FOUND(HttpStatus.NOT_FOUND, "장면을 찾을 수 없습니다."),
     ILLUSTRATION_JOB_NOT_FOUND(HttpStatus.NOT_FOUND, "일러스트 생성 Job을 찾을 수 없습니다."),
