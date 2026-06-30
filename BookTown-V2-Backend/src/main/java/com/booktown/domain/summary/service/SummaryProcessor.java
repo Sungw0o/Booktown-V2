@@ -9,6 +9,7 @@ import com.booktown.domain.summary.repository.SummaryJobRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -34,7 +35,7 @@ public class SummaryProcessor {
     private final SummaryDocumentRepository summaryDocumentRepository;
     private final ChapterRepository chapterRepository;
     private final RagService ragService;
-    private final ChatClient chatClient;
+    private final ObjectProvider<ChatClient> chatClientProvider;
 
     @Async("summaryProcessingExecutor")
     @Transactional
@@ -53,6 +54,7 @@ public class SummaryProcessor {
 
             String context = ragService.retrieveContext(bookId, "이 작품의 주제와 주요 사건");
 
+            ChatClient chatClient = requireChatClient();
             String summaryContent = chatClient.prompt()
                     .user(SUMMARY_PROMPT.formatted(context))
                     .call()
@@ -75,7 +77,16 @@ public class SummaryProcessor {
         return e.getMessage() != null && (
                 e.getMessage().contains("timeout") ||
                 e.getMessage().contains("rate limit") ||
-                e.getMessage().contains("service unavailable")
+                e.getMessage().contains("service unavailable") ||
+                e.getMessage().contains("not configured")
         );
+    }
+
+    private ChatClient requireChatClient() {
+        ChatClient chatClient = chatClientProvider.getIfAvailable();
+        if (chatClient == null) {
+            throw new IllegalStateException("AI chat client is not configured.");
+        }
+        return chatClient;
     }
 }

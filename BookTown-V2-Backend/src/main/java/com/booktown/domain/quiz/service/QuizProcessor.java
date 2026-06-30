@@ -20,6 +20,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -64,7 +65,7 @@ public class QuizProcessor {
     private final BookRepository bookRepository;
     private final ChapterRepository chapterRepository;
     private final UserRepository userRepository;
-    private final ChatClient chatClient;
+    private final ObjectProvider<ChatClient> chatClientProvider;
 
     @Async("quizProcessingExecutor")
     @Transactional
@@ -78,6 +79,7 @@ public class QuizProcessor {
             String context = buildContext(chapters, job.getQuestionCount());
             String prompt = String.format(QUIZ_PROMPT, context, job.getQuestionCount(), job.getDifficulty().name());
 
+            ChatClient chatClient = requireChatClient();
             String aiResponse = chatClient.prompt().user(prompt).call().content();
             String json = extractJson(aiResponse);
             List<AiQuestion> aiQuestions = OBJECT_MAPPER.readValue(json, new TypeReference<>() {});
@@ -121,6 +123,14 @@ public class QuizProcessor {
             }
         }
         return sb.toString();
+    }
+
+    private ChatClient requireChatClient() {
+        ChatClient chatClient = chatClientProvider.getIfAvailable();
+        if (chatClient == null) {
+            throw new IllegalStateException("AI chat client is not configured.");
+        }
+        return chatClient;
     }
 
     private String extractJson(String response) {
