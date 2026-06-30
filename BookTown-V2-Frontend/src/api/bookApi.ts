@@ -12,8 +12,15 @@ export interface Book {
   hasSummary: boolean;
   hasIllust: boolean;
   hasQuiz: boolean;
-  chapters: string[];
+  chapters: BookChapter[];
   bookmarkCount?: number;
+}
+
+export interface BookChapter {
+  id: string;
+  chapterNumber: number;
+  title: string;
+  label: string;
 }
 
 export interface PageMeta {
@@ -74,6 +81,21 @@ const GENRE_LABELS: Record<string, string> = {
 
 const toGenreLabel = (genre: string) => GENRE_LABELS[genre] ?? genre;
 
+const toBookChapter = (chapter: BookDetailDto['chapters'][number]): BookChapter => ({
+  id: String(chapter.id),
+  chapterNumber: chapter.chapterNumber,
+  title: chapter.title,
+  label: `${chapter.chapterNumber}. ${chapter.title}`,
+});
+
+const makeMockChapters = (chapters: string[]): BookChapter[] =>
+  chapters.map((title, index) => ({
+    id: String(index + 1),
+    chapterNumber: index + 1,
+    title,
+    label: title,
+  }));
+
 const toBookSummary = (dto: BookSummaryDto): Book => ({
   id: String(dto.id),
   title: dto.title,
@@ -102,7 +124,7 @@ const toBookDetail = (dto: BookDetailDto): Book => ({
   hasSummary: dto.availableFeatures.summary,
   hasIllust: dto.availableFeatures.illustration,
   hasQuiz: dto.availableFeatures.quiz,
-  chapters: dto.chapters.map((chapter) => `${chapter.chapterNumber}. ${chapter.title}`),
+  chapters: dto.chapters.map(toBookChapter),
   bookmarkCount: dto.bookmarkCount,
 });
 
@@ -126,7 +148,7 @@ export const MOCK_BOOKS: Book[] = [
     hasSummary: true,
     hasIllust: true,
     hasQuiz: true,
-    chapters: ['Chapter 1: 하트퍼드셔의 베넷가', 'Chapter 2: 빙리 씨의 등장', 'Chapter 3: 무도회와 첫 인상', 'Chapter 4: 제인과 엘리자베스의 대화', 'Chapter 5: 루카스 가의 방문'],
+    chapters: makeMockChapters(['Chapter 1: 하트퍼드셔의 베넷가', 'Chapter 2: 빙리 씨의 등장', 'Chapter 3: 무도회와 첫 인상', 'Chapter 4: 제인과 엘리자베스의 대화', 'Chapter 5: 루카스 가의 방문']),
   },
   {
     id: 'gatsby',
@@ -138,7 +160,7 @@ export const MOCK_BOOKS: Book[] = [
     hasSummary: true,
     hasIllust: true,
     hasQuiz: true,
-    chapters: ['Chapter 1: 롱아일랜드의 여름', 'Chapter 2: 재의 계곡과 머틀', 'Chapter 3: 개츠비의 화려한 파티', 'Chapter 4: 차 안에서의 고백', 'Chapter 5: 데이지와의 재회'],
+    chapters: makeMockChapters(['Chapter 1: 롱아일랜드의 여름', 'Chapter 2: 재의 계곡과 머틀', 'Chapter 3: 개츠비의 화려한 파티', 'Chapter 4: 차 안에서의 고백', 'Chapter 5: 데이지와의 재회']),
   },
   {
     id: 'romeo',
@@ -150,7 +172,7 @@ export const MOCK_BOOKS: Book[] = [
     hasSummary: true,
     hasIllust: true,
     hasQuiz: false,
-    chapters: ['Act 1: 베로나 광장의 다툼과 무도회', 'Act 2: 발코니의 맹세와 비밀 결혼', 'Act 3: 머큐쇼의 죽음과 로미오의 추방', 'Act 4: 줄리엣의 가사약 복용', 'Act 5: 묘지에서의 비극과 화해'],
+    chapters: makeMockChapters(['Act 1: 베로나 광장의 다툼과 무도회', 'Act 2: 발코니의 맹세와 비밀 결혼', 'Act 3: 머큐쇼의 죽음과 로미오의 추방', 'Act 4: 줄리엣의 가사약 복용', 'Act 5: 묘지에서의 비극과 화해']),
   },
   {
     id: 'miserables',
@@ -162,7 +184,7 @@ export const MOCK_BOOKS: Book[] = [
     hasSummary: true,
     hasIllust: false,
     hasQuiz: true,
-    chapters: ['Part 1: 판틴과 장발장의 구원', 'Part 2: 떼나르디에 부부와 어린 코제트', 'Part 3: 마리우스의 등장과 혁명 모임', 'Part 4: 바리케이드와 혁명의 불꽃', 'Part 5: 하수구 탈출과 최후'],
+    chapters: makeMockChapters(['Part 1: 판틴과 장발장의 구원', 'Part 2: 떼나르디에 부부와 어린 코제트', 'Part 3: 마리우스의 등장과 혁명 모임', 'Part 4: 바리케이드와 혁명의 불꽃', 'Part 5: 하수구 탈출과 최후']),
   },
   {
     id: 'crime',
@@ -174,7 +196,7 @@ export const MOCK_BOOKS: Book[] = [
     hasSummary: true,
     hasIllust: true,
     hasQuiz: false,
-    chapters: ['Part 1: 범행의 계획과 살인', 'Part 2: 열병과 수사관들의 포위망', 'Part 3: 소냐와의 조우와 영혼의 균열', 'Part 4: 나사로의 부활 낭독', 'Part 5: 라스콜니코프의 고백과 자수'],
+    chapters: makeMockChapters(['Part 1: 범행의 계획과 살인', 'Part 2: 열병과 수사관들의 포위망', 'Part 3: 소냐와의 조우와 영혼의 균열', 'Part 4: 나사로의 부활 낭독', 'Part 5: 라스콜니코프의 고백과 자수']),
   },
   {
     id: 'jane',
@@ -186,7 +208,7 @@ export const MOCK_BOOKS: Book[] = [
     hasSummary: false,
     hasIllust: true,
     hasQuiz: true,
-    chapters: ['Chapter 1: 게이츠헤드 홀에서의 학대', 'Chapter 2: 로우드 자선학교의 시련', 'Chapter 3: 손필드 저택과 로체스터', 'Chapter 4: 불타는 침대와 비밀의 그림자', 'Chapter 5: 도피와 무어 하우스'],
+    chapters: makeMockChapters(['Chapter 1: 게이츠헤드 홀에서의 학대', 'Chapter 2: 로우드 자선학교의 시련', 'Chapter 3: 손필드 저택과 로체스터', 'Chapter 4: 불타는 침대와 비밀의 그림자', 'Chapter 5: 도피와 무어 하우스']),
   },
 ];
 

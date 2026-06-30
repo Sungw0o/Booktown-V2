@@ -80,10 +80,10 @@ const QuizLayout: React.FC<QuizLayoutProps> = ({ book, subtitle, activeTab, mobi
   const { user, logout, isAuthenticated } = useAuth();
 
   const handleGo = (tab: string) => {
-    if (tab === 'home') {
+    if (tab === 'home' || tab === 'search' || tab === 'history') {
       navigate('/');
     } else if (tab === 'me') {
-      navigate(`/books/${book.id}/quiz/result`);
+      navigate('/me');
     } else if (tab === 'admin') {
       navigate('/admin');
     }
@@ -249,7 +249,11 @@ export const QuizPage: React.FC = () => {
     setValidationError(null);
     setPhase('job');
     try {
-      const created = await createQuiz(isMockMode, book.id, options);
+      const chapterIds = book.chapters
+        .filter((chapter) => chapter.chapterNumber >= options.chapterFrom && chapter.chapterNumber <= options.chapterTo)
+        .map((chapter) => Number(chapter.id))
+        .filter(Number.isFinite);
+      const created = await createQuiz(isMockMode, book.id, { ...options, chapterIds });
       setJob(created.status === 'COMPLETED' ? created : { ...created, status: created.status ?? 'QUEUED' });
     } catch (err) {
       setPhase('setup');
@@ -287,7 +291,23 @@ export const QuizPage: React.FC = () => {
           optionId: answers[question.id],
         })),
       });
-      navigate(`/books/${book.id}/quiz/result`, { state: { book, quiz, result } satisfies ResultState });
+      const enrichedResult: QuizSubmissionResult = {
+        ...result,
+        items: result.items.map((item) => {
+          const question = quiz.questions.find((quizQuestion) => quizQuestion.id === item.questionId);
+          const selectedOrder = item.selectedOptionOrder ?? Number(answers[item.questionId]);
+          const chosenOption = question?.options.find((option) => Number(option.optionOrder ?? option.id) === selectedOrder);
+          const correctOption = question?.options.find((option) => Number(option.optionOrder ?? option.id) === item.correctOptionOrder);
+
+          return {
+            ...item,
+            question: item.question || question?.text || '',
+            chosen: chosenOption?.text ?? item.chosen,
+            correct: correctOption?.text ?? item.correct,
+          };
+        }),
+      };
+      navigate(`/books/${book.id}/quiz/result`, { state: { book, quiz, result: enrichedResult } satisfies ResultState });
     } catch (err) {
       setValidationError(err instanceof Error ? err.message : '답안 제출에 실패했습니다.');
     } finally {

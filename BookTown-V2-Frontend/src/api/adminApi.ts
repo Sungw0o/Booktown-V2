@@ -1,3 +1,4 @@
+import axios, { type AxiosProgressEvent } from 'axios';
 import client from './client';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -27,6 +28,47 @@ export interface ContentJob {
   createdAt: string;
   updatedAt: string;
 }
+
+interface ApiFieldError {
+  field?: string;
+  message?: string;
+}
+
+interface ApiErrorBody {
+  error?: {
+    message?: string;
+    fieldErrors?: ApiFieldError[];
+  };
+  message?: string;
+}
+
+export class AdminApiError extends Error {
+  status?: number;
+  fieldErrors: ApiFieldError[];
+
+  constructor(message: string, status?: number, fieldErrors: ApiFieldError[] = []) {
+    super(message);
+    this.name = 'AdminApiError';
+    this.status = status;
+    this.fieldErrors = fieldErrors;
+  }
+}
+
+const toAdminApiError = (error: unknown, fallback: string): AdminApiError => {
+  if (!axios.isAxiosError<ApiErrorBody>(error)) {
+    return error instanceof Error ? new AdminApiError(error.message) : new AdminApiError(fallback);
+  }
+
+  const status = error.response?.status;
+  const body = error.response?.data;
+  const fieldErrors = body?.error?.fieldErrors ?? [];
+
+  if (status === 401) return new AdminApiError('로그인이 만료되었습니다. 다시 로그인해 주세요.', status, fieldErrors);
+  if (status === 403) return new AdminApiError('관리자 권한이 필요한 작업입니다.', status, fieldErrors);
+  if (status === 413) return new AdminApiError('파일 크기가 너무 큽니다. 더 작은 TXT 파일을 업로드해 주세요.', status, fieldErrors);
+
+  return new AdminApiError(body?.error?.message ?? body?.message ?? fallback, status, fieldErrors);
+};
 
 // ─── Mock Data ────────────────────────────────────────────────────────────────
 
@@ -63,8 +105,12 @@ export const registerBook = async (
     await new Promise((r) => setTimeout(r, 600));
     return { bookId: Math.floor(Math.random() * 9000) + 1000 };
   }
-  const res = await client.post<{ data: RegisterBookResponse }>('/admin/books', req);
-  return res.data.data;
+  try {
+    const res = await client.post<{ data: RegisterBookResponse }>('/admin/books', req);
+    return res.data.data;
+  } catch (error) {
+    throw toAdminApiError(error, '도서 등록에 실패했습니다.');
+  }
 };
 
 /**
@@ -75,21 +121,34 @@ export const uploadContent = async (
   isMockMode: boolean,
   bookId: number,
   file: File,
+  onProgress?: (progress: number) => void,
 ): Promise<ContentJob> => {
   if (isMockMode) {
+    onProgress?.(25);
     await new Promise((r) => setTimeout(r, 800));
+    onProgress?.(100);
     _mockJobStatus = 'QUEUED';
     _mockJobTick = 0;
     return mockContentJob(Math.floor(Math.random() * 9000) + 1000, bookId);
   }
   const formData = new FormData();
   formData.append('file', file);
-  const res = await client.post<{ data: ContentJob }>(
-    `/admin/books/${bookId}/contents`,
-    formData,
-    { headers: { 'Content-Type': 'multipart/form-data' } },
-  );
-  return res.data.data;
+  try {
+    const res = await client.post<{ data: ContentJob }>(
+      `/admin/books/${bookId}/contents`,
+      formData,
+      {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        onUploadProgress: (event: AxiosProgressEvent) => {
+          if (!event.total) return;
+          onProgress?.(Math.min(100, Math.round((event.loaded / event.total) * 100)));
+        },
+      },
+    );
+    return res.data.data;
+  } catch (error) {
+    throw toAdminApiError(error, '업로드에 실패했습니다.');
+  }
 };
 
 /**

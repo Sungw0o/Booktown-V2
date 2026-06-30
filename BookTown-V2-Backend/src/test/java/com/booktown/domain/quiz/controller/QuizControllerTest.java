@@ -67,7 +67,7 @@ class QuizControllerTest {
                 null, null, false, LocalDateTime.now(), LocalDateTime.now());
         when(quizService.createQuiz(anyLong(), anyLong(), any())).thenReturn(job);
 
-        mockMvc.perform(post("/api/v1/books/1/quizzes")
+        mockMvc.perform(post("/books/1/quizzes")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"questionCount": 5, "difficulty": "NORMAL"}
@@ -83,7 +83,7 @@ class QuizControllerTest {
         when(quizService.createQuiz(anyLong(), anyLong(), any()))
                 .thenThrow(new CustomException(ErrorCode.BOOK_NOT_FOUND));
 
-        mockMvc.perform(post("/api/v1/books/99/quizzes")
+        mockMvc.perform(post("/books/99/quizzes")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"questionCount": 5, "difficulty": "NORMAL"}
@@ -98,7 +98,7 @@ class QuizControllerTest {
                 null, null, false, LocalDateTime.now(), LocalDateTime.now());
         when(quizService.getQuizJob(anyLong(), anyLong())).thenReturn(job);
 
-        mockMvc.perform(get("/api/v1/quiz-jobs/1"))
+        mockMvc.perform(get("/quiz-jobs/1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.difficulty").value("HARD"))
                 .andExpect(jsonPath("$.data.questionCount").value(10));
@@ -110,7 +110,7 @@ class QuizControllerTest {
         when(quizService.getQuizJob(anyLong(), anyLong()))
                 .thenThrow(new CustomException(ErrorCode.QUIZ_JOB_NOT_FOUND));
 
-        mockMvc.perform(get("/api/v1/quiz-jobs/1"))
+        mockMvc.perform(get("/quiz-jobs/1"))
                 .andExpect(status().isNotFound());
     }
 
@@ -120,7 +120,7 @@ class QuizControllerTest {
         QuizDetailResponse detail = new QuizDetailResponse(1L, 1L, "EASY", List.of());
         when(quizService.getQuiz(anyLong(), anyLong())).thenReturn(detail);
 
-        mockMvc.perform(get("/api/v1/quizzes/1"))
+        mockMvc.perform(get("/quizzes/1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.quizId").value(1))
                 .andExpect(jsonPath("$.data.difficulty").value("EASY"));
@@ -143,7 +143,7 @@ class QuizControllerTest {
                         new SubmitQuizRequest.AnswerItem(2L, 1)
                 )));
 
-        mockMvc.perform(post("/api/v1/quizzes/1/submissions")
+        mockMvc.perform(post("/quizzes/1/submissions")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andExpect(status().isCreated())
@@ -159,7 +159,7 @@ class QuizControllerTest {
         when(quizService.submitQuiz(anyLong(), anyLong(), any()))
                 .thenThrow(new CustomException(ErrorCode.QUIZ_ALREADY_SUBMITTED));
 
-        mockMvc.perform(post("/api/v1/quizzes/1/submissions")
+        mockMvc.perform(post("/quizzes/1/submissions")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(
                                 new SubmitQuizRequest(List.of(new SubmitQuizRequest.AnswerItem(1L, 1))))))
@@ -173,7 +173,7 @@ class QuizControllerTest {
         when(quizService.getMyQuizHistory(anyLong(), anyInt(), anyInt()))
                 .thenReturn(new PageImpl<>(List.of(item), PageRequest.of(0, 20), 1));
 
-        mockMvc.perform(get("/api/v1/users/me/quizzes"))
+        mockMvc.perform(get("/users/me/quizzes"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.content[0].score").value(80))
                 .andExpect(jsonPath("$.meta.totalElements").value(1));

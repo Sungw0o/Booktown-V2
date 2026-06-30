@@ -29,14 +29,13 @@ interface ApiResponse<T> {
 }
 
 interface BookmarkedBookDto {
-  id: number | string;
+  bookmarkId: number | string;
+  bookId: number | string;
   title: string;
   author: string;
   genre: string;
-  country?: string;
-  description?: string;
   coverImageUrl?: string | null;
-  bookmarkCount?: number;
+  bookmarkedAt?: string;
 }
 
 interface QuizHistoryDto {
@@ -47,6 +46,8 @@ interface QuizHistoryDto {
   title?: string;
   score: number;
   total?: number;
+  totalCount?: number;
+  correctCount?: number;
   totalQuestions?: number;
   accuracy?: number;
   submittedAt?: string;
@@ -76,30 +77,29 @@ const getMockQuizHistory = (): QuizHistoryItem[] => {
 };
 
 const toBook = (dto: BookmarkedBookDto): Book => ({
-  id: String(dto.id),
+  id: String(dto.bookId),
   title: dto.title,
   author: dto.author,
   genre: dto.genre,
-  country: dto.country,
-  description: dto.description ?? '',
+  description: '',
   coverImageUrl: dto.coverImageUrl,
   isBookmarked: true,
   hasSummary: false,
   hasIllust: false,
   hasQuiz: true,
   chapters: [],
-  bookmarkCount: dto.bookmarkCount,
 });
 
 const toQuizHistory = (dto: QuizHistoryDto): QuizHistoryItem => {
-  const total = dto.total ?? dto.totalQuestions ?? 0;
+  const total = dto.total ?? dto.totalCount ?? dto.totalQuestions ?? 0;
+  const correct = dto.correctCount ?? dto.score;
   return {
     quizId: String(dto.quizId ?? dto.id ?? `${dto.bookId}-${dto.submittedAt ?? dto.createdAt ?? ''}`),
     bookId: String(dto.bookId),
-    bookTitle: dto.bookTitle ?? dto.title ?? '도서',
-    score: dto.score,
+    bookTitle: dto.bookTitle ?? dto.title ?? `도서 #${dto.bookId}`,
+    score: correct,
     total,
-    accuracy: dto.accuracy ?? (total > 0 ? Math.round((dto.score / total) * 100) : 0),
+    accuracy: dto.accuracy ?? dto.score ?? (total > 0 ? Math.round((correct / total) * 100) : 0),
     submittedAt: dto.submittedAt ?? dto.createdAt ?? new Date().toISOString(),
   };
 };

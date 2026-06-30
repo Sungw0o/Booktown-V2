@@ -563,7 +563,7 @@ export const IllustrationGallery: React.FC = () => {
       <DkTopNav
         active="home"
         go={(tab) => {
-          if (tab === 'home') navigate('/');
+          if (tab === 'home' || tab === 'search' || tab === 'history') navigate('/');
           else if (tab === 'me') navigate('/me');
           else if (tab === 'admin') navigate('/admin');
         }}

@@ -39,9 +39,9 @@ export const Signup: React.FC = () => {
     setLoading(true);
     try {
       await signup(nickname, email, password);
-      setSuccessMsg('회원가입이 완료되었습니다! 잠시 후 로그인 페이지로 이동합니다.');
+      setSuccessMsg('회원가입이 완료되었습니다! 잠시 후 서재로 이동합니다.');
       timerRef.current = setTimeout(() => {
-        navigate('/login');
+        navigate('/');
       }, 2000);
     } catch (err: unknown) {
       setErrorMsg(err instanceof Error ? err.message : '회원가입에 실패했습니다.');

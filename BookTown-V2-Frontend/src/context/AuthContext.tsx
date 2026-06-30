@@ -7,9 +7,19 @@ interface AxiosErrorResponse {
   response?: {
     data?: {
       message?: string;
+      error?: {
+        message?: string;
+      };
     };
   };
 }
+
+const extractErrorMessage = (error: unknown, fallback: string): string => {
+  const axiosError = error as AxiosErrorResponse;
+  return axiosError.response?.data?.error?.message
+    ?? axiosError.response?.data?.message
+    ?? fallback;
+};
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [isMockMode, setIsMockMode] = useState<boolean>(() => {
@@ -102,18 +112,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     try {
       const response = await client.post('/auth/login', { email, password });
-      const { accessToken: token, nickname, role } = response.data.data;
+      const { accessToken: token } = response.data.data;
       setAccessTokenState(token);
       setAccessToken(token);
-      
-      const realUser = { nickname, email, role: role || 'USER' };
+
+      const userResponse = await client.get('/users/me');
+      const { nickname, email: profileEmail, role } = userResponse.data.data;
+      const realUser = { nickname, email: profileEmail, role: role || 'USER' };
       setUser(realUser);
     } catch (error: unknown) {
-      let errorMsg = '로그인에 실패했습니다. 이메일과 비밀번호를 확인해주세요.';
-      const axiosError = error as AxiosErrorResponse;
-      if (axiosError && axiosError.response?.data?.message) {
-        errorMsg = axiosError.response.data.message;
-      }
+      const errorMsg = extractErrorMessage(error, '로그인에 실패했습니다. 이메일과 비밀번호를 확인해주세요.');
       throw new Error(errorMsg, { cause: error });
     }
   };
@@ -124,17 +132,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (!nickname || !email || !password) {
         throw new Error('모든 필드를 입력해 주세요.');
       }
+      const mockToken = 'mock_jwt_access_token_' + Math.random().toString(36).substring(7);
+      const mockUser = { nickname, email, role: 'USER' };
+
+      setAccessTokenState(mockToken);
+      setAccessToken(mockToken);
+      setUser(mockUser);
+
+      if (import.meta.env.DEV) {
+        localStorage.setItem('bt_mock_token', mockToken);
+        localStorage.setItem('bt_mock_user', JSON.stringify(mockUser));
+      }
       return;
     }
 
     try {
-      await client.post('/auth/signup', { nickname, email, password });
+      const response = await client.post('/auth/signup', { nickname, email, password });
+      const { accessToken: token } = response.data.data;
+      setAccessTokenState(token);
+      setAccessToken(token);
+
+      const userResponse = await client.get('/users/me');
+      const { nickname: profileNickname, email: profileEmail, role } = userResponse.data.data;
+      setUser({ nickname: profileNickname, email: profileEmail, role: role || 'USER' });
     } catch (error: unknown) {
-      let errorMsg = '회원가입에 실패했습니다.';
-      const axiosError = error as AxiosErrorResponse;
-      if (axiosError && axiosError.response?.data?.message) {
-        errorMsg = axiosError.response.data.message;
-      }
+      const errorMsg = extractErrorMessage(error, '회원가입에 실패했습니다.');
       throw new Error(errorMsg, { cause: error });
     }
   };

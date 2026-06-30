@@ -7,14 +7,22 @@ export type QuizJobStatus = 'QUEUED' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
 export interface CreateQuizRequest {
   chapterFrom: number;
   chapterTo: number;
+  chapterIds?: number[];
   questionCount: number;
   difficulty: QuizDifficulty;
 }
 
 export interface QuizJob {
-  jobId: string;
+  jobId: number | string;
+  bookId?: number;
+  difficulty?: QuizDifficulty;
+  questionCount?: number;
   status: QuizJobStatus;
-  quizId?: string;
+  quizId?: number | string | null;
+  errorMessage?: string | null;
+  retryable?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
   message?: string;
 }
 
@@ -24,6 +32,7 @@ export interface QuizQuestion {
   options: Array<{
     id: string;
     text: string;
+    optionOrder?: number;
   }>;
 }
 
@@ -56,6 +65,8 @@ export interface QuizSubmissionResult {
     correct: string;
     explanation: string;
     isCorrect: boolean;
+    selectedOptionOrder?: number;
+    correctOptionOrder?: number;
   }>;
 }
 
@@ -75,18 +86,24 @@ interface ApiResponse<T> {
 }
 
 interface ApiQuestionDto {
-  id: number | string;
+  id?: number | string;
+  questionId?: number | string;
+  questionOrder?: number;
   question?: string;
   text?: string;
   content?: string;
   options?: Array<{
-    id: number | string;
+    id?: number | string;
+    optionId?: number | string;
+    optionOrder?: number;
     optionText?: string;
     text?: string;
     content?: string;
   }>;
   choices?: Array<{
-    id: number | string;
+    id?: number | string;
+    optionId?: number | string;
+    optionOrder?: number;
     optionText?: string;
     text?: string;
     content?: string;
@@ -94,7 +111,8 @@ interface ApiQuestionDto {
 }
 
 interface ApiQuizDto {
-  id: number | string;
+  id?: number | string;
+  quizId?: number | string;
   bookId?: number | string;
   title?: string;
   chapterRange?: string;
@@ -104,12 +122,14 @@ interface ApiQuizDto {
 
 interface ApiResultItemDto {
   questionId: number | string;
+  selectedOptionOrder?: number;
+  correctOptionOrder?: number;
   question?: string;
   questionText?: string;
   chosen?: string;
   chosenText?: string;
   selectedOptionText?: string;
-  correct?: string;
+  correct?: string | boolean;
   correctText?: string;
   correctOptionText?: string;
   explanation?: string;
@@ -118,13 +138,31 @@ interface ApiResultItemDto {
 }
 
 interface ApiSubmissionResultDto {
+  submissionId?: number | string;
   quizId: number | string;
   score: number;
   total?: number;
+  totalCount?: number;
+  correctCount?: number;
   accuracy?: number;
   submittedAt?: string;
   results?: ApiResultItemDto[];
   items?: ApiResultItemDto[];
+  answers?: ApiResultItemDto[];
+}
+
+interface ApiQuizHistoryDto {
+  submissionId?: number | string;
+  quizId?: number | string;
+  bookId: number | string;
+  bookTitle?: string;
+  title?: string;
+  difficulty?: QuizDifficulty;
+  score: number;
+  correctCount?: number;
+  totalCount?: number;
+  submittedAt?: string;
+  createdAt?: string;
 }
 
 interface MockQuestionSeed {
@@ -243,8 +281,14 @@ const unwrap = <T>(value: ApiResponse<T> | T): T => {
   return value as T;
 };
 
+const optionOrderLabel = (order?: number): string => (
+  typeof order === 'number' && order > 0
+    ? `${String.fromCodePoint(64 + order)}번`
+    : ''
+);
+
 const toQuiz = (dto: ApiQuizDto, fallbackBookId: string): Quiz => ({
-  id: String(dto.id),
+  id: String(dto.quizId ?? dto.id),
   bookId: String(dto.bookId ?? fallbackBookId),
   title: dto.title ?? '객관식 이해도 퀴즈',
   chapterRange: dto.chapterRange ?? '선택한 챕터',
@@ -252,33 +296,51 @@ const toQuiz = (dto: ApiQuizDto, fallbackBookId: string): Quiz => ({
   questions: dto.questions.map((question) => {
     const options = question.options ?? question.choices ?? [];
     return {
-      id: String(question.id),
+      id: String(question.questionId ?? question.id),
       text: question.question ?? question.text ?? question.content ?? '',
       options: options.map((option) => ({
-        id: String(option.id),
+        id: String(option.optionOrder ?? option.optionId ?? option.id),
         text: option.optionText ?? option.text ?? option.content ?? '',
+        optionOrder: option.optionOrder,
       })),
     };
   }),
 });
 
 const toResult = (dto: ApiSubmissionResultDto): QuizSubmissionResult => {
-  const items = dto.items ?? dto.results ?? [];
-  const total = dto.total ?? items.length;
+  const items = dto.items ?? dto.results ?? dto.answers ?? [];
+  const total = dto.total ?? dto.totalCount ?? items.length;
+  const score = dto.correctCount ?? dto.score;
   return {
     quizId: String(dto.quizId),
-    score: dto.score,
+    score,
     total,
-    accuracy: dto.accuracy ?? (total > 0 ? Math.round((dto.score / total) * 100) : 0),
+    accuracy: dto.accuracy ?? (total > 0 ? Math.round((score / total) * 100) : 0),
     submittedAt: dto.submittedAt ?? new Date().toISOString(),
     items: items.map((item) => ({
       questionId: String(item.questionId),
       question: item.question ?? item.questionText ?? '',
-      chosen: item.chosen ?? item.chosenText ?? item.selectedOptionText ?? '',
-      correct: item.correct ?? item.correctText ?? item.correctOptionText ?? '',
+      chosen: item.chosen ?? item.chosenText ?? item.selectedOptionText ?? optionOrderLabel(item.selectedOptionOrder),
+      correct: item.correctText ?? item.correctOptionText ?? optionOrderLabel(item.correctOptionOrder),
       explanation: item.explanation ?? '',
-      isCorrect: Boolean(item.isCorrect ?? item.correctAnswer),
+      isCorrect: Boolean(item.isCorrect ?? item.correct ?? item.correctAnswer),
+      selectedOptionOrder: item.selectedOptionOrder,
+      correctOptionOrder: item.correctOptionOrder,
     })),
+  };
+};
+
+const toQuizHistory = (dto: ApiQuizHistoryDto): QuizHistoryItem => {
+  const total = dto.totalCount ?? 0;
+  const correct = dto.correctCount ?? dto.score;
+  return {
+    quizId: String(dto.quizId ?? dto.submissionId ?? `${dto.bookId}-${dto.submittedAt ?? dto.createdAt ?? ''}`),
+    bookId: String(dto.bookId),
+    bookTitle: dto.bookTitle ?? dto.title ?? `도서 #${dto.bookId}`,
+    score: correct,
+    total,
+    accuracy: dto.score,
+    submittedAt: dto.submittedAt ?? dto.createdAt ?? new Date().toISOString(),
   };
 };
 
@@ -326,17 +388,22 @@ export const createQuiz = async (
     };
   }
 
-  const res = await client.post<ApiResponse<QuizJob> | QuizJob>(`/books/${bookId}/quizzes`, request);
+  const payload = {
+    chapterIds: request.chapterIds ?? [],
+    questionCount: request.questionCount,
+    difficulty: request.difficulty,
+  };
+  const res = await client.post<ApiResponse<QuizJob> | QuizJob>(`/books/${bookId}/quizzes`, payload);
   return unwrap(res.data);
 };
 
-export const getQuizJob = async (isMockMode: boolean, jobId: string): Promise<QuizJob> => {
+export const getQuizJob = async (isMockMode: boolean, jobId: number | string): Promise<QuizJob> => {
   if (isMockMode) {
     await new Promise((resolve) => setTimeout(resolve, 700));
     return {
       jobId,
       status: 'COMPLETED',
-      quizId: jobId.replace('mock-job-', ''),
+      quizId: String(jobId).replace('mock-job-', ''),
       message: '퀴즈 생성이 완료되었습니다.',
     };
   }
@@ -348,11 +415,11 @@ export const getQuizJob = async (isMockMode: boolean, jobId: string): Promise<Qu
 export const getQuiz = async (
   isMockMode: boolean,
   bookId: string,
-  quizId: string
+  quizId: number | string
 ): Promise<Quiz> => {
   if (isMockMode) {
     await new Promise((resolve) => setTimeout(resolve, 300));
-    const stored = mockQuizStore.get(quizId);
+    const stored = mockQuizStore.get(String(quizId));
     if (!stored) throw new Error('퀴즈를 찾을 수 없습니다.');
     return stored.quiz;
   }
@@ -397,9 +464,15 @@ export const submitQuiz = async (
     return result;
   }
 
+  const payload = {
+    answers: request.answers.map((answer) => ({
+      questionId: Number(answer.questionId),
+      selectedOptionOrder: Number(answer.optionId),
+    })),
+  };
   const res = await client.post<ApiResponse<ApiSubmissionResultDto> | ApiSubmissionResultDto>(
     `/quizzes/${quizId}/submissions`,
-    request
+    payload
   );
   return toResult(unwrap(res.data));
 };
@@ -429,7 +502,7 @@ export const getMyQuizHistory = async (isMockMode: boolean): Promise<QuizHistory
     return raw ? JSON.parse(raw) : [];
   }
 
-  const res = await client.get<ApiResponse<{ content?: QuizHistoryItem[] } | QuizHistoryItem[]>>('/users/me/quizzes');
+  const res = await client.get<ApiResponse<{ content?: ApiQuizHistoryDto[] } | ApiQuizHistoryDto[]>>('/users/me/quizzes');
   const data = unwrap(res.data);
-  return Array.isArray(data) ? data : data.content ?? [];
+  return (Array.isArray(data) ? data : data.content ?? []).map(toQuizHistory);
 };

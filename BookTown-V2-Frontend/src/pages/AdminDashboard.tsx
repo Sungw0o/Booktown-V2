@@ -6,6 +6,7 @@ import {
   uploadContent,
   getContentJob,
   type RegisterBookRequest,
+  AdminApiError,
   type ContentJob,
   type ContentJobStatus,
 } from '../api/adminApi';
@@ -107,20 +108,58 @@ const JobStatusBadge: React.FC<{ status: ContentJobStatus }> = ({ status }) => (
 // ─── Book Register Panel ──────────────────────────────────────────────────────
 
 type RegisterStep = 'meta' | 'upload' | 'polling' | 'done';
+type RegisterField = keyof RegisterBookRequest;
 
-const GENRE_OPTIONS   = ['소설', '시', '에세이', '역사', '철학', '고전', '기타'];
-const COUNTRY_OPTIONS = ['한국', '영국', '프랑스', '러시아', '미국', '독일', '일본', '기타'];
+const GENRE_OPTIONS = [
+  { label: '시', value: 'POETRY' },
+  { label: '산문', value: 'PROSE' },
+  { label: '소설', value: 'NOVEL' },
+  { label: '희곡', value: 'DRAMA' },
+  { label: '수필', value: 'ESSAY' },
+  { label: '역사', value: 'HISTORY' },
+];
+const COUNTRY_OPTIONS = [
+  { label: '한국', value: 'KOREA' },
+  { label: '중국', value: 'CHINA' },
+  { label: '일본', value: 'JAPAN' },
+  { label: '서양', value: 'WESTERN' },
+  { label: '기타', value: 'OTHER' },
+];
 const EMPTY_FORM: RegisterBookRequest = { title: '', author: '', description: '', coverImageUrl: '', genre: '', country: '' };
+const MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024;
+
+const getAdminErrorMessage = (error: unknown, fallback: string) => (
+  error instanceof Error ? error.message : fallback
+);
+
+const getFieldErrors = (error: unknown): Partial<Record<RegisterField, string>> => {
+  if (!(error instanceof AdminApiError)) return {};
+
+  return error.fieldErrors.reduce<Partial<Record<RegisterField, string>>>((acc, item) => {
+    if (item.field && item.message && item.field in EMPTY_FORM) {
+      acc[item.field as RegisterField] = item.message;
+    }
+    return acc;
+  }, {});
+};
+
+const formatFileSize = (size: number) => {
+  if (size >= 1024 * 1024) return `${(size / 1024 / 1024).toFixed(1)} MB`;
+  return `${(size / 1024).toFixed(1)} KB`;
+};
 
 const BookRegisterPanel: React.FC<{ isMockMode: boolean }> = ({ isMockMode }) => {
+  const navigate = useNavigate();
   const [expanded, setExpanded]     = useState(false);
   const [step, setStep]             = useState<RegisterStep>('meta');
   const [form, setForm]             = useState<RegisterBookRequest>(EMPTY_FORM);
+  const [fieldErrors, setFieldErrors] = useState<Partial<Record<RegisterField, string>>>({});
   const [metaLoading, setMetaLoading] = useState(false);
   const [metaError, setMetaError]   = useState<string | null>(null);
   const [bookId, setBookId]         = useState<number | null>(null);
   const [file, setFile]             = useState<File | null>(null);
   const [uploadLoading, setUploadLoading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<number>(0);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [job, setJob]               = useState<ContentJob | null>(null);
   const fileInputRef                = useRef<HTMLInputElement>(null);
@@ -149,8 +188,15 @@ const BookRegisterPanel: React.FC<{ isMockMode: boolean }> = ({ isMockMode }) =>
   const handleMetaSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setMetaError(null);
-    if (!form.title.trim() || !form.author.trim() || !form.genre || !form.country) {
-      setMetaError('제목, 저자, 장르, 국가는 필수입니다.');
+    const nextFieldErrors: Partial<Record<RegisterField, string>> = {};
+    if (!form.title.trim()) nextFieldErrors.title = '제목을 입력해 주세요.';
+    if (!form.author.trim()) nextFieldErrors.author = '저자를 입력해 주세요.';
+    if (!form.genre) nextFieldErrors.genre = '장르를 선택해 주세요.';
+    if (!form.country) nextFieldErrors.country = '국가를 선택해 주세요.';
+
+    setFieldErrors(nextFieldErrors);
+    if (Object.keys(nextFieldErrors).length > 0) {
+      setMetaError('필수 항목을 확인해 주세요.');
       return;
     }
     setMetaLoading(true);
@@ -159,13 +205,29 @@ const BookRegisterPanel: React.FC<{ isMockMode: boolean }> = ({ isMockMode }) =>
       setBookId(res.bookId);
       setStep('upload');
     } catch (err) {
-      setMetaError(err instanceof Error ? err.message : '도서 등록에 실패했습니다.');
+      setFieldErrors(getFieldErrors(err));
+      setMetaError(getAdminErrorMessage(err, '도서 등록에 실패했습니다.'));
     } finally { setMetaLoading(false); }
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0] ?? null;
-    if (f && !f.name.endsWith('.txt')) { setUploadError('TXT 파일만 업로드 가능합니다.'); setFile(null); return; }
+    setUploadProgress(0);
+    if (!f) {
+      setUploadError(null);
+      setFile(null);
+      return;
+    }
+    if (!f.name.toLowerCase().endsWith('.txt')) {
+      setUploadError('TXT 파일만 업로드 가능합니다.');
+      setFile(null);
+      return;
+    }
+    if (f.size > MAX_UPLOAD_SIZE_BYTES) {
+      setUploadError(`파일은 ${formatFileSize(MAX_UPLOAD_SIZE_BYTES)} 이하로 업로드해 주세요.`);
+      setFile(null);
+      return;
+    }
     setUploadError(null);
     setFile(f);
   };
@@ -174,20 +236,22 @@ const BookRegisterPanel: React.FC<{ isMockMode: boolean }> = ({ isMockMode }) =>
     if (!file || bookId === null) return;
     setUploadError(null);
     setUploadLoading(true);
+    setUploadProgress(0);
     try {
-      const contentJob = await uploadContent(isMockMode, bookId, file);
+      const contentJob = await uploadContent(isMockMode, bookId, file, setUploadProgress);
+      setUploadProgress(100);
       setJob(contentJob);
       setStep('polling');
       startPolling(contentJob.jobId);
     } catch (err) {
-      setUploadError(err instanceof Error ? err.message : '업로드에 실패했습니다.');
+      setUploadError(getAdminErrorMessage(err, '업로드에 실패했습니다.'));
     } finally { setUploadLoading(false); }
   };
 
   const handleReset = () => {
     stopPolling();
     setStep('meta'); setForm(EMPTY_FORM); setFile(null);
-    setBookId(null); setJob(null); setMetaError(null); setUploadError(null);
+    setBookId(null); setJob(null); setFieldErrors({}); setMetaError(null); setUploadError(null); setUploadProgress(0);
   };
 
   const inputClass = 'w-full rounded-xl glass-soft border border-black/5 dark:border-white/10 px-3.5 py-2.5 text-sm text-slate-800 dark:text-white placeholder:text-slate-400 dark:placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-purple-500/40 transition bg-transparent';
@@ -241,26 +305,30 @@ const BookRegisterPanel: React.FC<{ isMockMode: boolean }> = ({ isMockMode }) =>
                 <div>
                   <label className={labelClass}>제목 *</label>
                   <input className={inputClass} placeholder="예) 토지" value={form.title}
-                    onChange={e => setForm(f => ({ ...f, title: e.target.value }))} />
+                    onChange={e => { setForm(f => ({ ...f, title: e.target.value })); setFieldErrors(f => ({ ...f, title: undefined })); }} />
+                  {fieldErrors.title && <p className="mt-1 text-[11px] text-red-500">{fieldErrors.title}</p>}
                 </div>
                 <div>
                   <label className={labelClass}>저자 *</label>
                   <input className={inputClass} placeholder="예) 박경리" value={form.author}
-                    onChange={e => setForm(f => ({ ...f, author: e.target.value }))} />
+                    onChange={e => { setForm(f => ({ ...f, author: e.target.value })); setFieldErrors(f => ({ ...f, author: undefined })); }} />
+                  {fieldErrors.author && <p className="mt-1 text-[11px] text-red-500">{fieldErrors.author}</p>}
                 </div>
                 <div>
                   <label className={labelClass}>장르 *</label>
-                  <select className={inputClass} value={form.genre} onChange={e => setForm(f => ({ ...f, genre: e.target.value }))}>
+                  <select className={inputClass} value={form.genre} onChange={e => { setForm(f => ({ ...f, genre: e.target.value })); setFieldErrors(f => ({ ...f, genre: undefined })); }}>
                     <option value="">장르 선택</option>
-                    {GENRE_OPTIONS.map(g => <option key={g} value={g}>{g}</option>)}
+                    {GENRE_OPTIONS.map(g => <option key={g.value} value={g.value}>{g.label}</option>)}
                   </select>
+                  {fieldErrors.genre && <p className="mt-1 text-[11px] text-red-500">{fieldErrors.genre}</p>}
                 </div>
                 <div>
                   <label className={labelClass}>국가 *</label>
-                  <select className={inputClass} value={form.country} onChange={e => setForm(f => ({ ...f, country: e.target.value }))}>
+                  <select className={inputClass} value={form.country} onChange={e => { setForm(f => ({ ...f, country: e.target.value })); setFieldErrors(f => ({ ...f, country: undefined })); }}>
                     <option value="">국가 선택</option>
-                    {COUNTRY_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
+                    {COUNTRY_OPTIONS.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
                   </select>
+                  {fieldErrors.country && <p className="mt-1 text-[11px] text-red-500">{fieldErrors.country}</p>}
                 </div>
                 <div className="md:col-span-2">
                   <label className={labelClass}>설명</label>
@@ -302,9 +370,20 @@ const BookRegisterPanel: React.FC<{ isMockMode: boolean }> = ({ isMockMode }) =>
                   {file ? file.name : 'TXT 원문 파일 클릭하여 선택'}
                 </p>
                 {file && <span className="text-xs text-slate-400 dark:text-white/35">{(file.size / 1024).toFixed(1)} KB</span>}
-                <span className="text-[11px] text-slate-400 dark:text-white/25">.txt 파일만 허용</span>
+                <span className="text-[11px] text-slate-400 dark:text-white/25">.txt 파일만 허용 · 최대 {formatFileSize(MAX_UPLOAD_SIZE_BYTES)}</span>
               </div>
               <input ref={fileInputRef} type="file" accept=".txt" className="hidden" onChange={handleFileChange} />
+              {(uploadLoading || uploadProgress > 0) && (
+                <div className="glass-soft rounded-xl p-3">
+                  <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-white/45 mb-2">
+                    <span>업로드 진행률</span>
+                    <span className="font-mono">{uploadProgress}%</span>
+                  </div>
+                  <div className="h-1.5 bg-black/5 dark:bg-white/5 rounded-full overflow-hidden">
+                    <div className="h-full bg-purple-600 rounded-full transition-all duration-300" style={{ width: `${uploadProgress}%` }} />
+                  </div>
+                </div>
+              )}
               {uploadError && (
                 <div className="flex items-center gap-2 text-red-500 text-xs bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3">
                   <AlertCircle className="w-4 h-4 shrink-0" />{uploadError}
@@ -365,10 +444,18 @@ const BookRegisterPanel: React.FC<{ isMockMode: boolean }> = ({ isMockMode }) =>
                   {job.status === 'COMPLETED'
                     ? <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 text-sm font-medium"><CheckCircle className="w-4 h-4" />파싱 완료! 도서가 서비스에 반영됩니다.</div>
                     : <div className="flex items-center gap-2 text-red-500 text-sm"><XCircle className="w-4 h-4" />처리 실패 {job.retryable && '— 재시도 가능'}</div>}
-                  <button onClick={handleReset}
-                    className="text-xs px-4 py-2 rounded-xl glass-soft text-slate-600 dark:text-white/60 hover:text-slate-800 dark:hover:text-white transition">
-                    새 도서 등록
-                  </button>
+                  <div className="flex items-center gap-2">
+                    {job.status === 'COMPLETED' && (
+                      <button onClick={() => navigate(`/books/${job.bookId || bookId}`)}
+                        className="text-xs px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white transition">
+                        상세 보기
+                      </button>
+                    )}
+                    <button onClick={handleReset}
+                      className="text-xs px-4 py-2 rounded-xl glass-soft text-slate-600 dark:text-white/60 hover:text-slate-800 dark:hover:text-white transition">
+                      새 도서 등록
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
@@ -389,7 +476,7 @@ const AdminDashboard: React.FC = () => {
   const [error, setError]           = useState<string | null>(null);
   const [refreshCount, setRefreshCount] = useState<number>(0);
 
-  const grafanaUrl = import.meta.env.VITE_GRAFANA_URL || '/monitoring';
+  const grafanaUrl = import.meta.env.VITE_GRAFANA_URL || 'https://grafana.booktown.shop/login';
   const sonarUrl   = import.meta.env.VITE_SONARQUBE_URL || 'https://sonarcloud.io/summary/new_code?id=BookTown_BookTown-Frontend-V2';
   const swaggerUrl = import.meta.env.VITE_SWAGGER_URL || 'https://api.booktown.shop/api/v1/swagger-ui/index.html';
 
@@ -445,9 +532,9 @@ const AdminDashboard: React.FC = () => {
       <DkTopNav
         active="admin"
         go={tab => {
-          if (tab === 'home') navigate('/');
+          if (tab === 'home' || tab === 'search' || tab === 'history') navigate('/');
+          else if (tab === 'me') navigate('/me');
           else if (tab === 'admin') navigate('/admin');
-          else alert('준비 중인 기능입니다!');
         }}
         onLogout={logout}
         nickname={user?.nickname || '민'}
