@@ -77,7 +77,7 @@ interface QuizLayoutProps {
 
 const QuizLayout: React.FC<QuizLayoutProps> = ({ book, subtitle, activeTab, mobileContent, desktopContent }) => {
   const navigate = useNavigate();
-  const { user, logout, isAuthenticated } = useAuth();
+  const { user, logout, isAuthenticated, sessionExpiresAt, extendSession } = useAuth();
 
   const handleGo = (tab: string) => {
     if (tab === 'home' || tab === 'search' || tab === 'history') {
@@ -126,7 +126,10 @@ const QuizLayout: React.FC<QuizLayoutProps> = ({ book, subtitle, activeTab, mobi
           active="home"
           go={handleGo}
           onLogout={isAuthenticated ? handleLogout : undefined}
+          onExtendSession={isAuthenticated ? extendSession : undefined}
           nickname={user?.nickname || '민'}
+          userRole={user?.role}
+          sessionExpiresAt={sessionExpiresAt}
         />
         <div className="flex-1 overflow-y-auto pt-24 px-10 py-8 max-w-6xl mx-auto w-full">{desktopContent}</div>
       </div>

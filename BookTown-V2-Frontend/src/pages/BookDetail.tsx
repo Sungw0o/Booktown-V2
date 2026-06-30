@@ -8,7 +8,7 @@ import { Loader2, Heart, BookOpen, AlertCircle, FileText, Image, CheckSquare } f
 
 export const BookDetail: React.FC = () => {
   const { bookId } = useParams<{ bookId: string }>();
-  const { user, logout, isMockMode, isAuthenticated } = useAuth();
+  const { user, logout, isMockMode, isAuthenticated, sessionExpiresAt, extendSession } = useAuth();
   const navigate = useNavigate();
 
   const [book, setBook] = useState<Book | null>(null);
@@ -111,7 +111,10 @@ export const BookDetail: React.FC = () => {
           }
         }}
         onLogout={logout}
+        onExtendSession={extendSession}
         nickname={user?.nickname || '민'}
+        userRole={user?.role}
+        sessionExpiresAt={sessionExpiresAt}
       />
 
       {/* Decorative Orbs */}

@@ -469,7 +469,7 @@ const BookRegisterPanel: React.FC<{ isMockMode: boolean }> = ({ isMockMode }) =>
 // ─── Admin Dashboard ──────────────────────────────────────────────────────────
 
 const AdminDashboard: React.FC = () => {
-  const { user, logout, isMockMode } = useAuth();
+  const { user, logout, isMockMode, sessionExpiresAt, extendSession } = useAuth();
   const navigate = useNavigate();
   const [data, setData]             = useState<ServiceStatus | null>(null);
   const [loading, setLoading]       = useState<boolean>(true);
@@ -537,7 +537,10 @@ const AdminDashboard: React.FC = () => {
           else if (tab === 'admin') navigate('/admin');
         }}
         onLogout={logout}
+        onExtendSession={extendSession}
         nickname={user?.nickname || '민'}
+        userRole={user?.role}
+        sessionExpiresAt={sessionExpiresAt}
       />
 
       <div className="absolute top-[10%] left-[20%] w-[400px] h-[400px] rounded-full bg-purple-600/5 dark:bg-purple-900/10 blur-[130px] pointer-events-none animate-pulse" />
