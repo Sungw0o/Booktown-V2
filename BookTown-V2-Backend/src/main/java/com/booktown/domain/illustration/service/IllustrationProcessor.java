@@ -11,6 +11,7 @@ import org.springframework.ai.image.ImageOptions;
 import org.springframework.ai.image.ImageOptionsBuilder;
 import org.springframework.ai.image.ImagePrompt;
 import org.springframework.ai.image.ImageResponse;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,7 +23,7 @@ public class IllustrationProcessor {
 
     private final IllustrationJobRepository illustrationJobRepository;
     private final IllustrationDocumentRepository illustrationDocumentRepository;
-    private final ImageModel imageModel;
+    private final ObjectProvider<ImageModel> imageModelProvider;
 
     @Async("illustrationProcessingExecutor")
     @Transactional
@@ -36,6 +37,7 @@ public class IllustrationProcessor {
             ImageOptions options = ImageOptionsBuilder.builder()
                     .model("dall-e-3")
                     .build();
+            ImageModel imageModel = requireImageModel();
             ImageResponse response = imageModel.call(new ImagePrompt(prompt, options));
             String imageUrl = response.getResult().getOutput().getUrl();
 
@@ -72,8 +74,16 @@ public class IllustrationProcessor {
                         + "Scene description: %s. %s"
                         + "The illustration should evoke the mood and atmosphere of classic literature.",
                 style, scene,
-                excerpt != null ? excerpt.substring(0, Math.min(200, excerpt.length())) : "",
+                        excerpt != null ? excerpt.substring(0, Math.min(200, excerpt.length())) : "",
                 hint.isBlank() ? "" : "Additional guidance: " + hint + ". "
         );
+    }
+
+    private ImageModel requireImageModel() {
+        ImageModel imageModel = imageModelProvider.getIfAvailable();
+        if (imageModel == null) {
+            throw new IllegalStateException("AI image model is not configured.");
+        }
+        return imageModel;
     }
 }
