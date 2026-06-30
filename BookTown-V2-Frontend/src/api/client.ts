@@ -16,6 +16,7 @@ export const setAccessToken = (token: string | null) => {
 
 const client = axios.create({
   baseURL: `${import.meta.env.VITE_API_BASE_URL ?? 'https://api.booktown.shop'}/api/v1`,
+  withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
   },

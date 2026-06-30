@@ -61,7 +61,7 @@ class IllustrationControllerTest {
         when(illustrationService.getScenes(eq(1L), eq(0), eq(20)))
                 .thenReturn(new PageImpl<>(List.of(scene), PageRequest.of(0, 20), 1));
 
-        mockMvc.perform(get("/api/v1/books/1/scenes"))
+        mockMvc.perform(get("/books/1/scenes"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.content[0].sceneId").value(1))
                 .andExpect(jsonPath("$.data.content[0].title").value("첫 번째 장면"));
@@ -72,7 +72,7 @@ class IllustrationControllerTest {
         when(illustrationService.getScenes(anyLong(), anyInt(), anyInt()))
                 .thenThrow(new CustomException(ErrorCode.BOOK_NOT_FOUND));
 
-        mockMvc.perform(get("/api/v1/books/99/scenes"))
+        mockMvc.perform(get("/books/99/scenes"))
                 .andExpect(status().isNotFound());
     }
 
@@ -81,7 +81,7 @@ class IllustrationControllerTest {
         when(illustrationService.createIllustration(eq(1L), eq(1L), any()))
                 .thenReturn(jobResponse("QUEUED"));
 
-        mockMvc.perform(post("/api/v1/scenes/1/illustrations")
+        mockMvc.perform(post("/scenes/1/illustrations")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of("style", "CLASSIC"))))
                 .andExpect(status().isAccepted())
@@ -93,7 +93,7 @@ class IllustrationControllerTest {
         when(illustrationService.createIllustration(any(), any(), any()))
                 .thenThrow(new CustomException(ErrorCode.DUPLICATE_ILLUSTRATION_JOB));
 
-        mockMvc.perform(post("/api/v1/scenes/1/illustrations")
+        mockMvc.perform(post("/scenes/1/illustrations")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of("style", "CLASSIC"))))
                 .andExpect(status().isConflict());
@@ -104,7 +104,7 @@ class IllustrationControllerTest {
         when(illustrationService.createIllustration(any(), any(), any()))
                 .thenThrow(new CustomException(ErrorCode.ILLUSTRATION_RATE_LIMIT_EXCEEDED));
 
-        mockMvc.perform(post("/api/v1/scenes/1/illustrations")
+        mockMvc.perform(post("/scenes/1/illustrations")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of("style", "CLASSIC"))))
                 .andExpect(status().isTooManyRequests());
@@ -114,7 +114,7 @@ class IllustrationControllerTest {
     void getIllustrationJob_returns_200() throws Exception {
         when(illustrationService.getIllustrationJob(anyLong(), anyLong())).thenReturn(jobResponse("COMPLETED"));
 
-        mockMvc.perform(get("/api/v1/illustration-jobs/10"))
+        mockMvc.perform(get("/illustration-jobs/10"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("COMPLETED"));
     }
@@ -124,7 +124,7 @@ class IllustrationControllerTest {
         when(illustrationService.getIllustrationJob(anyLong(), anyLong()))
                 .thenThrow(new CustomException(ErrorCode.ILLUSTRATION_JOB_NOT_FOUND));
 
-        mockMvc.perform(get("/api/v1/illustration-jobs/99"))
+        mockMvc.perform(get("/illustration-jobs/99"))
                 .andExpect(status().isNotFound());
     }
 
@@ -133,7 +133,7 @@ class IllustrationControllerTest {
         IllustrationResponse doc = new IllustrationResponse("docId", 1L, "CLASSIC", "https://img.test/1.png", false, LocalDateTime.now());
         when(illustrationService.getIllustrations(anyLong(), anyLong())).thenReturn(List.of(doc));
 
-        mockMvc.perform(get("/api/v1/scenes/1/illustrations"))
+        mockMvc.perform(get("/scenes/1/illustrations"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].illustrationId").value("docId"));
     }
@@ -142,7 +142,7 @@ class IllustrationControllerTest {
     void regenerateIllustration_returns_202() throws Exception {
         when(illustrationService.regenerateIllustration(anyLong(), any())).thenReturn(jobResponse("QUEUED"));
 
-        mockMvc.perform(post("/api/v1/illustrations/docId/regenerations"))
+        mockMvc.perform(post("/illustrations/docId/regenerations"))
                 .andExpect(status().isAccepted())
                 .andExpect(jsonPath("$.data.status").value("QUEUED"));
     }

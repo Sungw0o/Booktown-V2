@@ -102,14 +102,12 @@ export const BookDetail: React.FC = () => {
       <DkTopNav
         active="home"
         go={(tab) => {
-          if (tab === 'home') {
+          if (tab === 'home' || tab === 'search' || tab === 'history') {
             navigate('/');
           } else if (tab === 'me') {
             navigate('/me');
           } else if (tab === 'admin') {
             navigate('/admin');
-          } else {
-            alert('준비 중인 기능입니다!');
           }
         }}
         onLogout={logout}
@@ -216,13 +214,13 @@ export const BookDetail: React.FC = () => {
             수록 목차
           </h3>
           <div className="divide-y divide-black/5 dark:divide-white/5">
-            {book.chapters.map((chap, idx) => (
+            {book.chapters.map((chap) => (
               <div
-                key={idx}
+                key={chap.id}
                 className="py-3.5 flex items-center justify-between text-xs md:text-sm text-slate-600 dark:text-white/70 font-light hover:text-slate-800 dark:hover:text-white transition duration-200"
               >
-                <span>{chap}</span>
-                <span className="text-[10px] font-mono text-slate-400 dark:text-white/35">Chapter {idx + 1}</span>
+                <span>{chap.label}</span>
+                <span className="text-[10px] font-mono text-slate-400 dark:text-white/35">Chapter {chap.chapterNumber}</span>
               </div>
             ))}
           </div>

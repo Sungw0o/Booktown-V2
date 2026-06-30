@@ -120,14 +120,12 @@ export const BookHome: React.FC = () => {
       <DkTopNav
         active="home"
         go={(tab) => {
-          if (tab === 'home') {
+          if (tab === 'home' || tab === 'search' || tab === 'history') {
             navigate('/');
           } else if (tab === 'me') {
             navigate('/me');
           } else if (tab === 'admin') {
             navigate('/admin');
-          } else {
-            alert('준비 중인 기능입니다!');
           }
         }}
         onLogout={logout}

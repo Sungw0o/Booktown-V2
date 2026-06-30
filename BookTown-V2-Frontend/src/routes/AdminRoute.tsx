@@ -3,7 +3,7 @@ import { Navigate, Outlet } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 
 export const AdminRoute: React.FC = () => {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, user } = useAuth();
 
   if (isLoading) {
     return (
@@ -21,12 +21,9 @@ export const AdminRoute: React.FC = () => {
     return <Navigate to="/login" replace />;
   }
 
-  // 임시 권한 해제: 일반 유저도 관리자 대시보드에 접근할 수 있도록 주석 처리
-  /*
   if (user?.role !== 'ADMIN') {
     return <Navigate to="/403" replace />;
   }
-  */
 
   return <Outlet />;
 };
