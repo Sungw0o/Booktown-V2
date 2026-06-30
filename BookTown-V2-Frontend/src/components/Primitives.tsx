@@ -393,15 +393,40 @@ export interface DkTopNavProps {
   active: string;
   go: (tab: string) => void;
   onLogout?: () => void;
+  onExtendSession?: () => Promise<void> | void;
   nickname?: string;
+  userRole?: string;
+  sessionExpiresAt?: number | null;
 }
 
-export const DkTopNav: React.FC<DkTopNavProps> = ({ active, go, onLogout, nickname = '민' }) => {
+const formatSessionRemaining = (remainingMs: number) => {
+  const totalSeconds = Math.max(0, Math.floor(remainingMs / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  if (minutes >= 60) {
+    const hours = Math.floor(minutes / 60);
+    const restMinutes = minutes % 60;
+    return restMinutes > 0 ? `${hours}시간 ${restMinutes}분` : `${hours}시간`;
+  }
+  return `${minutes}:${String(seconds).padStart(2, '0')}`;
+};
+
+export const DkTopNav: React.FC<DkTopNavProps> = ({
+  active,
+  go,
+  onLogout,
+  onExtendSession,
+  nickname = '민',
+  userRole,
+  sessionExpiresAt,
+}) => {
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [isNotificationOpen, setIsNotificationOpen] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
+  const [isExtendingSession, setIsExtendingSession] = useState(false);
   const links = [
-    { id: 'home',    label: '탐색' },
-    { id: 'search',  label: '검색' },
-    { id: 'me',      label: '마이' },
-    { id: 'admin',   label: '관리자' },
+    { id: 'home', label: '홈' },
+    ...(userRole === 'ADMIN' ? [{ id: 'admin', label: '관리자' }] : []),
   ];
   const activeTabs: Record<string, string> = {
     detail: 'home',
@@ -410,6 +435,24 @@ export const DkTopNav: React.FC<DkTopNavProps> = ({ active, go, onLogout, nickna
     quiz: 'home',
   };
   const norm = activeTabs[active] || active;
+  const sessionRemainingMs = sessionExpiresAt ? sessionExpiresAt - now : null;
+  const hasSessionTimer = sessionRemainingMs !== null && sessionRemainingMs > 0;
+
+  useEffect(() => {
+    if (!sessionExpiresAt) return;
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [sessionExpiresAt]);
+
+  const handleExtendSession = async () => {
+    if (!onExtendSession || isExtendingSession) return;
+    try {
+      setIsExtendingSession(true);
+      await onExtendSession();
+    } finally {
+      setIsExtendingSession(false);
+    }
+  };
 
   return (
     <div className="absolute top-0 inset-x-0 z-30 glass-dark border-b border-black/5 dark:border-white/5">
@@ -417,7 +460,6 @@ export const DkTopNav: React.FC<DkTopNavProps> = ({ active, go, onLogout, nickna
         <button type="button" onClick={() => go('home')} className="flex items-center gap-2.5">
           <img src="/favicon.png" alt="책고을 로고" className="w-6 h-6 object-contain" />
           <span className="font-display text-slate-900 dark:text-white text-[18px] leading-none font-medium">책고을</span>
-          <span className="font-mono text-[9px] uppercase tracking-[0.18em] text-slate-400 dark:text-white/40">BOOK · TOWN</span>
         </button>
         <nav className="flex items-center gap-1 ml-4">
           {links.map((l) => (
@@ -440,24 +482,84 @@ export const DkTopNav: React.FC<DkTopNavProps> = ({ active, go, onLogout, nickna
             />
           </div>
           <ThemeToggle />
-          <button
-            type="button"
-            className="p-2 rounded-full hover:bg-black/5 dark:hover:bg-white/5 text-slate-700 dark:text-white/70 hover:text-slate-900 dark:hover:text-white transition flex items-center justify-center"
-            aria-label="알림 확인"
-          >
-            <DBell className="w-4 h-4" />
-          </button>
-          <button
-            type="button"
-            onClick={() => go('me')}
-            className="w-8 h-8 rounded-full bg-black/5 dark:bg-white/10 text-slate-800 dark:text-white text-[12px] grid place-items-center font-medium hover:bg-black/10 dark:hover:bg-white/20 transition"
-          >
-            {nickname.slice(0, 1)}
-          </button>
-          {onLogout && (
-            <button type="button" onClick={onLogout} className="text-[11px] text-slate-500 dark:text-white/40 hover:text-slate-950 dark:hover:text-white/75 transition ml-1">
-              로그아웃
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => {
+                setIsNotificationOpen((open) => !open);
+                setIsProfileOpen(false);
+              }}
+              className="p-2 rounded-full hover:bg-black/5 dark:hover:bg-white/5 text-slate-700 dark:text-white/70 hover:text-slate-900 dark:hover:text-white transition flex items-center justify-center"
+              aria-label="알림 확인"
+              aria-expanded={isNotificationOpen}
+            >
+              <DBell className="w-4 h-4" />
             </button>
+            {isNotificationOpen && (
+              <div className="absolute right-0 top-11 w-72 rounded-xl glass-strong border border-black/10 dark:border-white/10 p-3 shadow-2xl">
+                <div className="text-[11px] font-medium text-slate-700 dark:text-white/80">알림</div>
+                <div className="mt-3 rounded-lg bg-black/5 dark:bg-white/5 px-3 py-3 text-[12px] text-slate-500 dark:text-white/55">
+                  새 알림이 없습니다.
+                </div>
+              </div>
+            )}
+          </div>
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => {
+                setIsProfileOpen((open) => !open);
+                setIsNotificationOpen(false);
+              }}
+              className="w-8 h-8 rounded-full bg-black/5 dark:bg-white/10 text-slate-800 dark:text-white text-[12px] grid place-items-center font-medium hover:bg-black/10 dark:hover:bg-white/20 transition"
+              aria-label="프로필 메뉴"
+              aria-expanded={isProfileOpen}
+            >
+              {nickname.slice(0, 1)}
+            </button>
+            {isProfileOpen && (
+              <div className="absolute right-0 top-11 w-40 rounded-xl glass-strong border border-black/10 dark:border-white/10 p-2 shadow-2xl">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsProfileOpen(false);
+                    go('me');
+                  }}
+                  className={`w-full flex items-center gap-2 rounded-full px-3 py-2 text-left text-[12px] transition ${norm === 'me' ? 'bg-black/10 text-slate-950 dark:bg-white/15 dark:text-white' : 'text-slate-600 hover:bg-black/5 dark:text-white/65 dark:hover:bg-white/10'}`}
+                >
+                  <span className={`w-2 h-2 rounded-full border ${norm === 'me' ? 'border-[#7AA3D6] bg-[#7AA3D6]' : 'border-current'}`} />
+                  마이
+                </button>
+                {onLogout && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsProfileOpen(false);
+                      onLogout();
+                    }}
+                    className="mt-1 w-full flex items-center gap-2 rounded-full px-3 py-2 text-left text-[12px] text-slate-600 hover:bg-black/5 dark:text-white/65 dark:hover:bg-white/10 transition"
+                  >
+                    <span className="w-2 h-2 rounded-full border border-current" />
+                    로그아웃
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+          {hasSessionTimer && (
+            <div className="flex items-center gap-2 rounded-full bg-black/5 dark:bg-white/10 px-3 py-1.5 text-[11px] text-slate-600 dark:text-white/60">
+              <span className="font-mono tabular-nums">{formatSessionRemaining(sessionRemainingMs)}</span>
+              {onExtendSession && (
+                <button
+                  type="button"
+                  onClick={handleExtendSession}
+                  disabled={isExtendingSession}
+                  className="font-medium text-slate-800 hover:text-slate-950 disabled:opacity-50 dark:text-white/85 dark:hover:text-white"
+                >
+                  {isExtendingSession ? '연장 중' : '연장'}
+                </button>
+              )}
+            </div>
           )}
         </div>
       </div>

@@ -303,7 +303,7 @@ const Lightbox: React.FC<LightboxProps> = ({ url, title, onClose }) => {
 
 export const IllustrationGallery: React.FC = () => {
   const { bookId } = useParams<{ bookId: string }>();
-  const { user, logout, isMockMode } = useAuth();
+  const { user, logout, isMockMode, sessionExpiresAt, extendSession } = useAuth();
   const navigate = useNavigate();
 
   // Book info
@@ -568,7 +568,10 @@ export const IllustrationGallery: React.FC = () => {
           else if (tab === 'admin') navigate('/admin');
         }}
         onLogout={logout}
+        onExtendSession={extendSession}
         nickname={user?.nickname || '민'}
+        userRole={user?.role}
+        sessionExpiresAt={sessionExpiresAt}
       />
 
       <div className="w-full max-w-5xl mx-auto px-4 pt-24 pb-16 z-10 flex flex-col gap-6">

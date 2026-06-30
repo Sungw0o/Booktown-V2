@@ -8,6 +8,7 @@ export interface User {
 
 export interface AuthContextType {
   accessToken: string | null;
+  sessionExpiresAt: number | null;
   isAuthenticated: boolean;
   user: User | null;
   isMockMode: boolean;
@@ -15,6 +16,7 @@ export interface AuthContextType {
   toggleMockMode: () => void;
   login: (email: string, password: string) => Promise<void>;
   signup: (nickname: string, email: string, password: string) => Promise<void>;
+  extendSession: () => Promise<void>;
   logout: () => Promise<void>;
 }
 

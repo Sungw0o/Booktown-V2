@@ -43,7 +43,7 @@ const SectionState: React.FC<{ loading: boolean; error: string | null; empty: bo
 
 export const MyPage: React.FC = () => {
   const navigate = useNavigate();
-  const { user, logout, isMockMode, isAuthenticated } = useAuth();
+  const { user, logout, isMockMode, isAuthenticated, sessionExpiresAt, extendSession } = useAuth();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [profileLoading, setProfileLoading] = useState(true);
   const [profileError, setProfileError] = useState<string | null>(null);
@@ -97,7 +97,10 @@ export const MyPage: React.FC = () => {
         active="me"
         go={handleGo}
         onLogout={isAuthenticated ? handleLogout : undefined}
+        onExtendSession={isAuthenticated ? extendSession : undefined}
         nickname={displayProfile?.nickname || '민'}
+        userRole={user?.role}
+        sessionExpiresAt={sessionExpiresAt}
       />
 
       <main className="w-full max-w-6xl mx-auto z-10 flex-1 pb-24 md:pb-8">

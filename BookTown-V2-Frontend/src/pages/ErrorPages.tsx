@@ -34,7 +34,7 @@ interface DkErrorScreenProps {
 
 export const DkErrorScreen: React.FC<DkErrorScreenProps> = ({ code }) => {
   const navigate = useNavigate();
-  const { user, logout, isAuthenticated } = useAuth();
+  const { user, logout, isAuthenticated, sessionExpiresAt, extendSession } = useAuth();
   const m = ERROR_META[code];
   const [reqId] = React.useState(() => `${m.code}-${Math.random().toString(36).slice(2, 10).toUpperCase()}`);
   const [timestamp] = React.useState(() => new Date().toISOString().slice(0, 19) + 'Z');
@@ -100,7 +100,10 @@ export const DkErrorScreen: React.FC<DkErrorScreenProps> = ({ code }) => {
           active="home" 
           go={handleGo} 
           onLogout={isAuthenticated ? handleLogout : undefined} 
+          onExtendSession={isAuthenticated ? extendSession : undefined}
           nickname={user?.nickname || '민'} 
+          userRole={user?.role}
+          sessionExpiresAt={sessionExpiresAt}
         />
         
         <div className="absolute inset-0 top-16 grid place-items-center px-10">

@@ -19,7 +19,7 @@ const GENRES = [
 const PAGE_SIZE = 20;
 
 export const BookHome: React.FC = () => {
-  const { user, logout, isMockMode } = useAuth();
+  const { user, logout, isMockMode, sessionExpiresAt, extendSession } = useAuth();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -129,7 +129,10 @@ export const BookHome: React.FC = () => {
           }
         }}
         onLogout={logout}
+        onExtendSession={extendSession}
         nickname={user?.nickname || '민'}
+        userRole={user?.role}
+        sessionExpiresAt={sessionExpiresAt}
       />
 
       {/* Decorative Orbs */}

@@ -100,8 +100,13 @@ client.interceptors.response.use(
             { withCredentials: true }
           )
           .then(({ data }) => {
-            const newAccessToken = data.data.accessToken;
+            const { accessToken: newAccessToken, accessTokenExpiresInMs } = data.data;
             setAccessToken(newAccessToken);
+            if (typeof window !== 'undefined') {
+              window.dispatchEvent(new CustomEvent('bt-token-reissued', {
+                detail: { accessToken: newAccessToken, accessTokenExpiresInMs },
+              }));
+            }
             originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
             processQueue(null, newAccessToken);
             resolve(client(originalRequest));
