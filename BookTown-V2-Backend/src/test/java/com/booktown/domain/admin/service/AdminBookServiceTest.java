@@ -5,6 +5,11 @@ import com.booktown.domain.admin.dto.RegisterBookRequest;
 import com.booktown.domain.admin.dto.RegisterBookResponse;
 import com.booktown.domain.admin.entity.ContentJob;
 import com.booktown.domain.admin.entity.ContentJobStatus;
+import com.booktown.domain.admin.gutendex.GutendexBookDto;
+import com.booktown.domain.admin.gutendex.GutendexBookSearchResponse;
+import com.booktown.domain.admin.gutendex.GutendexClient;
+import com.booktown.domain.admin.gutendex.GutendexMapper;
+import com.booktown.domain.admin.gutendex.GutendexPageDto;
 import com.booktown.domain.admin.repository.ContentJobRepository;
 import com.booktown.domain.book.entity.Book;
 import com.booktown.domain.book.entity.Country;
@@ -17,6 +22,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockMultipartFile;
 
 import java.nio.charset.StandardCharsets;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -32,6 +39,8 @@ class AdminBookServiceTest {
     private BookRepository bookRepository;
     private ContentJobRepository contentJobRepository;
     private ContentProcessor contentProcessor;
+    private GutendexClient gutendexClient;
+    private GutendexMapper gutendexMapper;
     private AdminBookService adminBookService;
 
     @BeforeEach
@@ -39,7 +48,9 @@ class AdminBookServiceTest {
         bookRepository = mock(BookRepository.class);
         contentJobRepository = mock(ContentJobRepository.class);
         contentProcessor = mock(ContentProcessor.class);
-        adminBookService = new AdminBookService(bookRepository, contentJobRepository, contentProcessor);
+        gutendexClient = mock(GutendexClient.class);
+        gutendexMapper = new GutendexMapper();
+        adminBookService = new AdminBookService(bookRepository, contentJobRepository, contentProcessor, gutendexClient, gutendexMapper);
     }
 
     @Test
@@ -62,6 +73,34 @@ class AdminBookServiceTest {
         assertThatThrownBy(() -> adminBookService.registerBook(request))
                 .isInstanceOf(CustomException.class)
                 .extracting("errorCode").isEqualTo(ErrorCode.INVALID_INPUT);
+    }
+
+    @Test
+    void searchGutendexBooks_returns_mapped_results() {
+        GutendexBookDto book = new GutendexBookDto(
+                1342L,
+                "Pride and Prejudice",
+                List.of(new com.booktown.domain.admin.gutendex.GutendexAuthorDto("Austen, Jane", 1775, 1817)),
+                List.of("A classic novel of manners."),
+                List.of("Courtship -- Fiction", "England -- Fiction"),
+                List.of("Best Books Ever Listings"),
+                List.of("en"),
+                false,
+                Map.of(
+                        "text/plain; charset=utf-8", "https://www.gutenberg.org/cache/epub/1342/pg1342.txt",
+                        "image/jpeg", "https://www.gutenberg.org/cache/epub/1342/cover.jpg"
+                ),
+                1000
+        );
+        when(gutendexClient.search("pride", 1))
+                .thenReturn(new GutendexPageDto(1, null, null, List.of(book)));
+
+        GutendexBookSearchResponse response = adminBookService.searchGutendexBooks("pride", 1);
+
+        assertThat(response.books()).hasSize(1);
+        assertThat(response.books().get(0).gutenbergId()).isEqualTo(1342L);
+        assertThat(response.books().get(0).textPlainUrl()).contains("pg1342.txt");
+        assertThat(response.books().get(0).suggestedGenre()).isEqualTo("NOVEL");
     }
 
     @Test

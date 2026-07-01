@@ -16,6 +16,37 @@ export interface RegisterBookResponse {
   bookId: number;
 }
 
+export interface GutendexBookSearchItem {
+  gutenbergId: number;
+  title: string;
+  author: string;
+  description: string | null;
+  coverImageUrl: string | null;
+  textPlainUrl: string | null;
+  suggestedGenre: string;
+  suggestedCountry: string;
+  subjects: string[];
+  bookshelves: string[];
+  downloadCount: number | null;
+}
+
+export interface GutendexBookSearchResponse {
+  count: number;
+  nextPage: number | null;
+  previousPage: number | null;
+  books: GutendexBookSearchItem[];
+}
+
+export interface GutendexImportRequest {
+  genre?: string;
+  country?: string;
+}
+
+export interface GutendexImportResponse {
+  book: RegisterBookResponse;
+  contentJob: ContentJob;
+}
+
 export type ContentJobStatus = 'QUEUED' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
 
 export interface ContentJob {
@@ -91,6 +122,35 @@ const mockContentJob = (jobId: number, bookId: number): ContentJob => {
   };
 };
 
+const MOCK_GUTENDEX_BOOKS: GutendexBookSearchItem[] = [
+  {
+    gutenbergId: 1342,
+    title: 'Pride and Prejudice',
+    author: 'Austen, Jane',
+    description: 'A classic novel of manners following Elizabeth Bennet and Mr. Darcy.',
+    coverImageUrl: null,
+    textPlainUrl: 'https://www.gutenberg.org/cache/epub/1342/pg1342.txt',
+    suggestedGenre: 'NOVEL',
+    suggestedCountry: 'WESTERN',
+    subjects: ['Courtship -- Fiction', 'England -- Fiction'],
+    bookshelves: ['Best Books Ever Listings'],
+    downloadCount: 70000,
+  },
+  {
+    gutenbergId: 84,
+    title: 'Frankenstein; Or, The Modern Prometheus',
+    author: 'Shelley, Mary Wollstonecraft',
+    description: 'A Gothic novel about creation, responsibility, and alienation.',
+    coverImageUrl: null,
+    textPlainUrl: 'https://www.gutenberg.org/cache/epub/84/pg84.txt',
+    suggestedGenre: 'NOVEL',
+    suggestedCountry: 'WESTERN',
+    subjects: ['Science fiction', 'Gothic fiction'],
+    bookshelves: ['Gothic Fiction', 'Science Fiction'],
+    downloadCount: 50000,
+  },
+];
+
 // ─── API Functions ────────────────────────────────────────────────────────────
 
 /**
@@ -110,6 +170,55 @@ export const registerBook = async (
     return res.data.data;
   } catch (error) {
     throw toAdminApiError(error, '도서 등록에 실패했습니다.');
+  }
+};
+
+export const searchGutendexBooks = async (
+  isMockMode: boolean,
+  keyword: string,
+  page = 1,
+): Promise<GutendexBookSearchResponse> => {
+  if (isMockMode) {
+    await new Promise((r) => setTimeout(r, 400));
+    const q = keyword.trim().toLowerCase();
+    const books = MOCK_GUTENDEX_BOOKS.filter((book) =>
+      book.title.toLowerCase().includes(q) || book.author.toLowerCase().includes(q),
+    );
+    return { count: books.length, nextPage: null, previousPage: null, books };
+  }
+  try {
+    const res = await client.get<{ data: GutendexBookSearchResponse }>('/admin/gutendex/books', {
+      params: { keyword, page },
+    });
+    return res.data.data;
+  } catch (error) {
+    throw toAdminApiError(error, 'Gutendex 검색에 실패했습니다.');
+  }
+};
+
+export const importGutendexBook = async (
+  isMockMode: boolean,
+  gutenbergId: number,
+  req: GutendexImportRequest = {},
+): Promise<GutendexImportResponse> => {
+  if (isMockMode) {
+    await new Promise((r) => setTimeout(r, 700));
+    _mockJobStatus = 'QUEUED';
+    _mockJobTick = 0;
+    const bookId = Math.floor(Math.random() * 9000) + 1000;
+    return {
+      book: { bookId },
+      contentJob: mockContentJob(Math.floor(Math.random() * 9000) + 1000, bookId),
+    };
+  }
+  try {
+    const res = await client.post<{ data: GutendexImportResponse }>(
+      `/admin/gutendex/books/${gutenbergId}/import`,
+      req,
+    );
+    return res.data.data;
+  } catch (error) {
+    throw toAdminApiError(error, 'Gutendex 도서 가져오기에 실패했습니다.');
   }
 };
 
