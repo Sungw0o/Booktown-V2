@@ -3,6 +3,9 @@ package com.booktown.domain.admin.controller.api;
 import com.booktown.domain.admin.dto.ContentJobResponse;
 import com.booktown.domain.admin.dto.RegisterBookRequest;
 import com.booktown.domain.admin.dto.RegisterBookResponse;
+import com.booktown.domain.admin.gutendex.GutendexBookSearchResponse;
+import com.booktown.domain.admin.gutendex.GutendexImportRequest;
+import com.booktown.domain.admin.gutendex.GutendexImportResponse;
 import com.booktown.global.response.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -28,6 +31,20 @@ public interface AdminBookApi {
     @Operation(summary = "도서 등록", description = "ADMIN 권한으로 도서 메타데이터를 등록합니다.")
     ResponseEntity<ApiResponse<RegisterBookResponse>> registerBook(
             @Valid @RequestBody RegisterBookRequest request
+    );
+
+    @GetMapping("/gutendex/books")
+    @Operation(summary = "Gutendex 도서 검색", description = "Project Gutenberg 도서를 Gutendex API로 검색합니다. 영어 public domain 텍스트 보유 도서만 조회합니다.")
+    ApiResponse<GutendexBookSearchResponse> searchGutendexBooks(
+            @RequestParam("keyword") String keyword,
+            @RequestParam(defaultValue = "1") int page
+    );
+
+    @PostMapping("/gutendex/books/{gutenbergId}/import")
+    @Operation(summary = "Gutendex 도서 가져오기", description = "Gutendex 도서 메타데이터를 Book으로 등록하고 원문 다운로드/챕터 분리 Job을 시작합니다. AI 키 없이 동작합니다.")
+    ResponseEntity<ApiResponse<GutendexImportResponse>> importGutendexBook(
+            @PathVariable Long gutenbergId,
+            @RequestBody(required = false) GutendexImportRequest request
     );
 
     @PostMapping(value = "/books/{bookId}/contents", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)

@@ -1,6 +1,7 @@
 package com.booktown.domain.admin.service;
 
 import com.booktown.domain.admin.entity.ContentJob;
+import com.booktown.domain.admin.gutendex.GutendexClient;
 import com.booktown.domain.admin.repository.ContentJobRepository;
 import com.booktown.domain.book.entity.Book;
 import com.booktown.domain.book.entity.Chapter;
@@ -8,6 +9,7 @@ import com.booktown.domain.book.entity.Scene;
 import com.booktown.domain.book.repository.BookRepository;
 import com.booktown.domain.book.repository.ChapterRepository;
 import com.booktown.domain.book.repository.SceneRepository;
+import com.booktown.global.exception.CustomException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
@@ -35,6 +37,7 @@ public class ContentProcessor {
     private final BookRepository bookRepository;
     private final ChapterRepository chapterRepository;
     private final SceneRepository sceneRepository;
+    private final GutendexClient gutendexClient;
 
     @Async("contentProcessingExecutor")
     @Transactional
@@ -42,9 +45,33 @@ public class ContentProcessor {
         ContentJob job = contentJobRepository.findById(jobId).orElseThrow();
         job.markProcessing();
         contentJobRepository.save(job);
+        processContent(job, rawContent);
+    }
+
+    @Async("contentProcessingExecutor")
+    @Transactional
+    public void processFromGutendex(Long jobId, String textUrl) {
+        ContentJob job = contentJobRepository.findById(jobId).orElseThrow();
+        job.markProcessing();
+        contentJobRepository.save(job);
 
         try {
-            String text = new String(rawContent, StandardCharsets.UTF_8);
+            byte[] rawContent = gutendexClient.downloadText(textUrl);
+            processContent(job, rawContent);
+        } catch (CustomException e) {
+            log.warn("ContentJob {} failed while downloading Gutendex text: {}", jobId, e.getMessage());
+            job.markFailed(e.getMessage(), true);
+            contentJobRepository.save(job);
+        } catch (Exception e) {
+            log.error("ContentJob {} failed while importing Gutendex text: {}", jobId, e.getMessage(), e);
+            job.markFailed(e.getMessage(), true);
+            contentJobRepository.save(job);
+        }
+    }
+
+    private void processContent(ContentJob job, byte[] rawContent) {
+        try {
+            String text = stripProjectGutenbergBoilerplate(new String(rawContent, StandardCharsets.UTF_8));
             List<ChapterSegment> segments = parseChapters(text);
 
             Book book = job.getBook();
@@ -67,9 +94,9 @@ public class ContentProcessor {
 
             job.markCompleted(chapters.size());
             contentJobRepository.save(job);
-            log.info("ContentJob {} completed: {} chapters, {} scenes", jobId, chapters.size(), scenes.size());
+            log.info("ContentJob {} completed: {} chapters, {} scenes", job.getId(), chapters.size(), scenes.size());
         } catch (Exception e) {
-            log.error("ContentJob {} failed: {}", jobId, e.getMessage(), e);
+            log.error("ContentJob {} failed: {}", job.getId(), e.getMessage(), e);
             job.markFailed(e.getMessage(), true);
             contentJobRepository.save(job);
         }
@@ -95,6 +122,44 @@ public class ContentProcessor {
             return splitByHeaders(text, headerPositions);
         }
         return splitBySize(text);
+    }
+
+    private String stripProjectGutenbergBoilerplate(String text) {
+        String normalized = text.replace("\r\n", "\n");
+        int start = findAfter(normalized,
+                "*** START OF THE PROJECT GUTENBERG EBOOK",
+                "*** START OF THIS PROJECT GUTENBERG EBOOK",
+                "*** START OF THE PROJECT GUTENBERG");
+        int end = findBefore(normalized,
+                "*** END OF THE PROJECT GUTENBERG EBOOK",
+                "*** END OF THIS PROJECT GUTENBERG EBOOK",
+                "*** END OF THE PROJECT GUTENBERG");
+        String stripped = normalized.substring(start, end).trim();
+        return stripped.isBlank() ? normalized.trim() : stripped;
+    }
+
+    private int findAfter(String text, String... markers) {
+        String upper = text.toUpperCase();
+        for (String marker : markers) {
+            int index = upper.indexOf(marker);
+            if (index >= 0) {
+                int lineEnd = text.indexOf('\n', index);
+                return lineEnd >= 0 ? lineEnd + 1 : index + marker.length();
+            }
+        }
+        return 0;
+    }
+
+    private int findBefore(String text, String... markers) {
+        String upper = text.toUpperCase();
+        int end = text.length();
+        for (String marker : markers) {
+            int index = upper.indexOf(marker);
+            if (index >= 0) {
+                end = Math.min(end, index);
+            }
+        }
+        return end;
     }
 
     private List<ChapterSegment> splitByHeaders(String text, List<int[]> headers) {

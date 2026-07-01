@@ -4,6 +4,9 @@ import com.booktown.domain.admin.controller.api.AdminBookApi;
 import com.booktown.domain.admin.dto.ContentJobResponse;
 import com.booktown.domain.admin.dto.RegisterBookRequest;
 import com.booktown.domain.admin.dto.RegisterBookResponse;
+import com.booktown.domain.admin.gutendex.GutendexBookSearchResponse;
+import com.booktown.domain.admin.gutendex.GutendexImportRequest;
+import com.booktown.domain.admin.gutendex.GutendexImportResponse;
 import com.booktown.domain.admin.service.AdminBookService;
 import com.booktown.global.response.ApiResponse;
 import lombok.RequiredArgsConstructor;
@@ -22,6 +25,17 @@ public class AdminBookController implements AdminBookApi {
     public ResponseEntity<ApiResponse<RegisterBookResponse>> registerBook(RegisterBookRequest request) {
         RegisterBookResponse response = adminBookService.registerBook(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(response));
+    }
+
+    @Override
+    public ApiResponse<GutendexBookSearchResponse> searchGutendexBooks(String keyword, int page) {
+        return ApiResponse.success(adminBookService.searchGutendexBooks(keyword, page));
+    }
+
+    @Override
+    public ResponseEntity<ApiResponse<GutendexImportResponse>> importGutendexBook(Long gutenbergId, GutendexImportRequest request) {
+        GutendexImportResponse response = adminBookService.importGutendexBook(gutenbergId, request);
+        return ResponseEntity.status(HttpStatus.ACCEPTED).body(ApiResponse.success(response));
     }
 
     @Override

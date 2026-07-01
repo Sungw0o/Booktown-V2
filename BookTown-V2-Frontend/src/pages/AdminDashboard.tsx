@@ -5,7 +5,10 @@ import {
   registerBook,
   uploadContent,
   getContentJob,
+  searchGutendexBooks,
+  importGutendexBook,
   type RegisterBookRequest,
+  type GutendexBookSearchItem,
   AdminApiError,
   type ContentJob,
   type ContentJobStatus,
@@ -27,6 +30,8 @@ import {
   ChevronUp,
   Loader2,
   AlertCircle,
+  Search,
+  Download,
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { DkTopNav } from '../components/Primitives';
@@ -162,6 +167,11 @@ const BookRegisterPanel: React.FC<{ isMockMode: boolean }> = ({ isMockMode }) =>
   const [uploadProgress, setUploadProgress] = useState<number>(0);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [job, setJob]               = useState<ContentJob | null>(null);
+  const [gutendexKeyword, setGutendexKeyword] = useState('');
+  const [gutendexResults, setGutendexResults] = useState<GutendexBookSearchItem[]>([]);
+  const [gutendexLoading, setGutendexLoading] = useState(false);
+  const [gutendexError, setGutendexError] = useState<string | null>(null);
+  const [gutendexImportingId, setGutendexImportingId] = useState<number | null>(null);
   const fileInputRef                = useRef<HTMLInputElement>(null);
   const pollRef                     = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -210,6 +220,47 @@ const BookRegisterPanel: React.FC<{ isMockMode: boolean }> = ({ isMockMode }) =>
     } finally { setMetaLoading(false); }
   };
 
+  const handleGutendexSearch = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    const keyword = gutendexKeyword.trim();
+    if (!keyword) {
+      setGutendexError('검색어를 입력해 주세요.');
+      return;
+    }
+    setGutendexLoading(true);
+    setGutendexError(null);
+    try {
+      const result = await searchGutendexBooks(isMockMode, keyword);
+      setGutendexResults(result.books);
+      if (result.books.length === 0) {
+        setGutendexError('검색 결과가 없습니다.');
+      }
+    } catch (err) {
+      setGutendexError(getAdminErrorMessage(err, 'Gutendex 검색에 실패했습니다.'));
+    } finally {
+      setGutendexLoading(false);
+    }
+  };
+
+  const handleGutendexImport = async (book: GutendexBookSearchItem) => {
+    setGutendexImportingId(book.gutenbergId);
+    setGutendexError(null);
+    try {
+      const result = await importGutendexBook(isMockMode, book.gutenbergId, {
+        genre: book.suggestedGenre,
+        country: book.suggestedCountry,
+      });
+      setBookId(result.book.bookId);
+      setJob(result.contentJob);
+      setStep('polling');
+      startPolling(result.contentJob.jobId);
+    } catch (err) {
+      setGutendexError(getAdminErrorMessage(err, 'Gutendex 도서 가져오기에 실패했습니다.'));
+    } finally {
+      setGutendexImportingId(null);
+    }
+  };
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0] ?? null;
     setUploadProgress(0);
@@ -252,6 +303,7 @@ const BookRegisterPanel: React.FC<{ isMockMode: boolean }> = ({ isMockMode }) =>
     stopPolling();
     setStep('meta'); setForm(EMPTY_FORM); setFile(null);
     setBookId(null); setJob(null); setFieldErrors({}); setMetaError(null); setUploadError(null); setUploadProgress(0);
+    setGutendexError(null); setGutendexImportingId(null);
   };
 
   const inputClass = 'w-full rounded-xl glass-soft border border-black/5 dark:border-white/10 px-3.5 py-2.5 text-sm text-slate-800 dark:text-white placeholder:text-slate-400 dark:placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-purple-500/40 transition bg-transparent';
@@ -300,8 +352,88 @@ const BookRegisterPanel: React.FC<{ isMockMode: boolean }> = ({ isMockMode }) =>
 
           {/* Step 1: Metadata */}
           {step === 'meta' && (
-            <form onSubmit={handleMetaSubmit} className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-5">
+              <div className="rounded-2xl border border-blue-500/15 bg-blue-500/[0.04] p-4">
+                <div className="flex items-center justify-between gap-4 mb-3">
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-800 dark:text-white">Gutendex에서 가져오기</h3>
+                    <p className="text-[11px] text-slate-500 dark:text-white/40 mt-0.5">Project Gutenberg 공개 도서를 검색하고 원문 처리 Job을 바로 시작합니다.</p>
+                  </div>
+                  <span className="text-[10px] px-2 py-1 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-300 font-mono">No AI Key</span>
+                </div>
+                <form onSubmit={handleGutendexSearch} className="flex gap-2">
+                  <div className="relative flex-1">
+                    <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-white/35" />
+                    <input
+                      className={`${inputClass} pl-9`}
+                      placeholder="예) pride prejudice, frankenstein"
+                      value={gutendexKeyword}
+                      onChange={(e) => setGutendexKeyword(e.target.value)}
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={gutendexLoading}
+                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold disabled:opacity-50 transition"
+                  >
+                    {gutendexLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+                    검색
+                  </button>
+                </form>
+                {gutendexError && (
+                  <div className="mt-3 flex items-center gap-2 text-red-500 text-xs bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3">
+                    <AlertCircle className="w-4 h-4 shrink-0" />{gutendexError}
+                  </div>
+                )}
+                {gutendexResults.length > 0 && (
+                  <div className="mt-4 grid gap-3">
+                    {gutendexResults.slice(0, 5).map((book) => (
+                      <div key={book.gutenbergId} className="glass-soft rounded-xl p-3 flex items-start gap-3">
+                        {book.coverImageUrl ? (
+                          <img src={book.coverImageUrl} alt="" className="w-12 h-16 object-cover rounded-lg bg-black/10" />
+                        ) : (
+                          <div className="w-12 h-16 rounded-lg bg-black/5 dark:bg-white/5 grid place-items-center text-slate-400">
+                            <BookOpen className="w-5 h-5" />
+                          </div>
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="text-sm font-semibold text-slate-800 dark:text-white truncate">{book.title}</p>
+                              <p className="text-[11px] text-slate-500 dark:text-white/45 mt-0.5">{book.author}</p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleGutendexImport(book)}
+                              disabled={gutendexImportingId !== null || !book.textPlainUrl}
+                              className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold disabled:opacity-50 transition"
+                            >
+                              {gutendexImportingId === book.gutenbergId ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+                              가져오기
+                            </button>
+                          </div>
+                          <p className="text-[11px] text-slate-500 dark:text-white/40 line-clamp-2 mt-2">
+                            {book.description || book.subjects.slice(0, 3).join(', ') || '설명 없음'}
+                          </p>
+                          <div className="mt-2 flex flex-wrap gap-1.5 text-[10px]">
+                            <span className="px-2 py-0.5 rounded-full bg-black/5 dark:bg-white/5 text-slate-500 dark:text-white/40">#{book.gutenbergId}</span>
+                            <span className="px-2 py-0.5 rounded-full bg-black/5 dark:bg-white/5 text-slate-500 dark:text-white/40">{book.suggestedGenre}</span>
+                            {book.downloadCount !== null && <span className="px-2 py-0.5 rounded-full bg-black/5 dark:bg-white/5 text-slate-500 dark:text-white/40">downloads {book.downloadCount.toLocaleString()}</span>}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="relative flex items-center justify-center">
+                <div className="h-px w-full bg-black/5 dark:bg-white/10" />
+                <span className="absolute px-3 text-[11px] text-slate-400 dark:text-white/30 bg-[#f8fafc] dark:bg-[#0b0f17]">또는 직접 등록</span>
+              </div>
+
+              <form onSubmit={handleMetaSubmit} className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className={labelClass}>제목 *</label>
                   <input className={inputClass} placeholder="예) 토지" value={form.title}
@@ -346,14 +478,15 @@ const BookRegisterPanel: React.FC<{ isMockMode: boolean }> = ({ isMockMode }) =>
                   <AlertCircle className="w-4 h-4 shrink-0" />{metaError}
                 </div>
               )}
-              <div className="flex justify-end pt-2">
-                <button type="submit" disabled={metaLoading}
-                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-sm font-semibold disabled:opacity-50 transition">
-                  {metaLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
-                  도서 등록
-                </button>
-              </div>
-            </form>
+                <div className="flex justify-end pt-2">
+                  <button type="submit" disabled={metaLoading}
+                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-sm font-semibold disabled:opacity-50 transition">
+                    {metaLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+                    도서 등록
+                  </button>
+                </div>
+              </form>
+            </div>
           )}
 
           {/* Step 2: File upload */}

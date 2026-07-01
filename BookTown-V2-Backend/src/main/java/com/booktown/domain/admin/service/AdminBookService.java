@@ -4,6 +4,13 @@ import com.booktown.domain.admin.dto.ContentJobResponse;
 import com.booktown.domain.admin.dto.RegisterBookRequest;
 import com.booktown.domain.admin.dto.RegisterBookResponse;
 import com.booktown.domain.admin.entity.ContentJob;
+import com.booktown.domain.admin.gutendex.GutendexBookDto;
+import com.booktown.domain.admin.gutendex.GutendexBookSearchResponse;
+import com.booktown.domain.admin.gutendex.GutendexClient;
+import com.booktown.domain.admin.gutendex.GutendexImportRequest;
+import com.booktown.domain.admin.gutendex.GutendexImportResponse;
+import com.booktown.domain.admin.gutendex.GutendexMapper;
+import com.booktown.domain.admin.gutendex.GutendexPageDto;
 import com.booktown.domain.admin.repository.ContentJobRepository;
 import com.booktown.domain.book.entity.Book;
 import com.booktown.domain.book.entity.Country;
@@ -24,6 +31,7 @@ import java.nio.charset.CharacterCodingException;
 import java.nio.charset.CharsetDecoder;
 import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -34,6 +42,8 @@ public class AdminBookService {
     private final BookRepository bookRepository;
     private final ContentJobRepository contentJobRepository;
     private final ContentProcessor contentProcessor;
+    private final GutendexClient gutendexClient;
+    private final GutendexMapper gutendexMapper;
 
     @Transactional
     public RegisterBookResponse registerBook(RegisterBookRequest request) {
@@ -44,6 +54,57 @@ public class AdminBookService {
         bookRepository.save(book);
         return new RegisterBookResponse(book.getId(), book.getTitle(), book.getAuthor(),
                 book.getGenre().name(), book.getCountry().name());
+    }
+
+    @Transactional(readOnly = true)
+    public GutendexBookSearchResponse searchGutendexBooks(String keyword, int page) {
+        GutendexPageDto result = gutendexClient.search(keyword, page);
+        return new GutendexBookSearchResponse(
+                result.count(),
+                gutendexClient.extractPage(result.next()).orElse(null),
+                gutendexClient.extractPage(result.previous()).orElse(null),
+                Optional.ofNullable(result.results()).orElse(java.util.List.of()).stream()
+                        .map(gutendexMapper::toSearchItem)
+                        .toList()
+        );
+    }
+
+    @Transactional
+    public GutendexImportResponse importGutendexBook(Long gutenbergId, GutendexImportRequest request) {
+        GutendexBookDto gutendexBook = gutendexClient.getBook(gutenbergId);
+        String textUrl = gutendexMapper.findTextPlainUrl(gutendexBook.formats())
+                .orElseThrow(() -> new CustomException(ErrorCode.INVALID_INPUT));
+        Genre genre = resolveGenre(request, gutendexBook);
+        Country country = resolveCountry(request);
+
+        Book book = Book.create(
+                gutendexBook.title(),
+                gutendexMapper.firstAuthor(gutendexBook),
+                gutendexMapper.firstSummary(gutendexBook),
+                gutendexMapper.findCoverUrl(gutendexBook.formats()).orElse(null),
+                genre,
+                country
+        );
+        bookRepository.save(book);
+
+        ContentJob job = ContentJob.create(book);
+        contentJobRepository.save(job);
+
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                contentProcessor.processFromGutendex(job.getId(), textUrl);
+            }
+        });
+
+        RegisterBookResponse bookResponse = new RegisterBookResponse(
+                book.getId(),
+                book.getTitle(),
+                book.getAuthor(),
+                book.getGenre().name(),
+                book.getCountry().name()
+        );
+        return new GutendexImportResponse(bookResponse, ContentJobResponse.from(job));
     }
 
     @Transactional
@@ -106,6 +167,20 @@ public class AdminBookService {
         } catch (CharacterCodingException e) {
             throw new CustomException(ErrorCode.FILE_ENCODING_INVALID);
         }
+    }
+
+    private Genre resolveGenre(GutendexImportRequest request, GutendexBookDto book) {
+        if (request != null && request.genre() != null && !request.genre().isBlank()) {
+            return parseEnum(Genre.class, request.genre(), ErrorCode.INVALID_INPUT);
+        }
+        return gutendexMapper.suggestGenre(book);
+    }
+
+    private Country resolveCountry(GutendexImportRequest request) {
+        if (request != null && request.country() != null && !request.country().isBlank()) {
+            return parseEnum(Country.class, request.country(), ErrorCode.INVALID_INPUT);
+        }
+        return Country.WESTERN;
     }
 
     private <T extends Enum<T>> T parseEnum(Class<T> enumClass, String value, ErrorCode errorCode) {
