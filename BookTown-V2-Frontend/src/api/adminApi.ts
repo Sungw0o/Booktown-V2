@@ -47,6 +47,11 @@ export interface GutendexImportResponse {
   contentJob: ContentJob;
 }
 
+export interface GeneratedCoverResponse {
+  bookId: number;
+  coverImageUrl: string;
+}
+
 export type ContentJobStatus = 'QUEUED' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
 
 export interface ContentJob {
@@ -274,4 +279,20 @@ export const getContentJob = async (
   }
   const res = await client.get<{ data: ContentJob }>(`/admin/content-jobs/${jobId}`);
   return res.data.data;
+};
+
+export const generateBookCover = async (
+  isMockMode: boolean,
+  bookId: number,
+): Promise<GeneratedCoverResponse> => {
+  if (isMockMode) {
+    await new Promise((r) => setTimeout(r, 700));
+    return { bookId, coverImageUrl: `/api/v1/books/${bookId}/cover-image` };
+  }
+  try {
+    const res = await client.post<{ data: GeneratedCoverResponse }>(`/admin/books/${bookId}/cover`);
+    return res.data.data;
+  } catch (error) {
+    throw toAdminApiError(error, 'AI 표지 생성에 실패했습니다.');
+  }
 };
