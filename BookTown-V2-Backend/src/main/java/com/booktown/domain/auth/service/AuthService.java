@@ -23,9 +23,11 @@ public class AuthService {
     private final JwtTokenProvider jwtTokenProvider;
     private final JwtProperties jwtProperties;
     private final RefreshTokenService refreshTokenService;
+    private final TurnstileVerifier turnstileVerifier;
 
     @Transactional
     public TokenPair signup(SignupRequest request) {
+        turnstileVerifier.verify(request.turnstileToken());
         if (userRepository.existsByEmail(request.email())) {
             throw new CustomException(ErrorCode.EMAIL_ALREADY_EXISTS);
         }
@@ -40,6 +42,7 @@ public class AuthService {
 
     @Transactional(readOnly = true)
     public TokenPair login(LoginRequest request) {
+        turnstileVerifier.verify(request.turnstileToken());
         User user = userRepository.findByEmail(request.email())
                 .orElseThrow(() -> new CustomException(ErrorCode.INVALID_PASSWORD));
         if (user.getPasswordHash() == null || !passwordEncoder.matches(request.password(), user.getPasswordHash())) {

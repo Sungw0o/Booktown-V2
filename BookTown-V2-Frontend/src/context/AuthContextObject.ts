@@ -14,8 +14,8 @@ export interface AuthContextType {
   isMockMode: boolean;
   isLoading: boolean;
   toggleMockMode: () => void;
-  login: (email: string, password: string) => Promise<void>;
-  signup: (nickname: string, email: string, password: string) => Promise<void>;
+  login: (email: string, password: string, turnstileToken?: string) => Promise<void>;
+  signup: (nickname: string, email: string, password: string, turnstileToken?: string) => Promise<void>;
   extendSession: () => Promise<void>;
   logout: () => Promise<void>;
 }

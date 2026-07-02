@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { DArrow, DkCover, DkMark, ThemeToggle } from '../components/Primitives';
+import TurnstileWidget from '../components/TurnstileWidget';
 
 // mock book data from unpack
 const EX_BOOKS = [
@@ -18,6 +19,10 @@ export const Login: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const [turnstileResetSignal, setTurnstileResetSignal] = useState(0);
+  const turnstileSiteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY as string | undefined;
+  const shouldUseTurnstile = !isMockMode && Boolean(turnstileSiteKey);
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -25,13 +30,18 @@ export const Login: React.FC = () => {
       setErrorMsg('이메일과 비밀번호를 입력해주세요.');
       return;
     }
+    if (shouldUseTurnstile && !turnstileToken) {
+      setErrorMsg('사람 인증을 완료해 주세요.');
+      return;
+    }
     setErrorMsg(null);
     setLoading(true);
     try {
-      await login(email, password);
+      await login(email, password, turnstileToken ?? undefined);
       navigate('/');
     } catch (err: unknown) {
       setErrorMsg(err instanceof Error ? err.message : '로그인에 실패했습니다.');
+      if (shouldUseTurnstile) setTurnstileResetSignal((value) => value + 1);
     } finally {
       setLoading(false);
     }
@@ -137,9 +147,17 @@ export const Login: React.FC = () => {
           </label>
         </div>
 
+        {shouldUseTurnstile && turnstileSiteKey && (
+          <TurnstileWidget
+            siteKey={turnstileSiteKey}
+            resetSignal={turnstileResetSignal}
+            onTokenChange={setTurnstileToken}
+          />
+        )}
+
         <button
           type="submit"
-          disabled={loading}
+          disabled={loading || (shouldUseTurnstile && !turnstileToken)}
           className="w-full mt-5 py-3 rounded-full text-[13px] text-white font-medium glass-btn disabled:opacity-50"
           style={{
             background: 'linear-gradient(135deg,#7AA3D6,#3E6FA9)',

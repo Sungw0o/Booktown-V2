@@ -23,6 +23,7 @@ public enum ErrorCode {
     REFRESH_TOKEN_REUSED(HttpStatus.UNAUTHORIZED, "재사용된 Refresh Token입니다."),
     UNSUPPORTED_AUTH_PROVIDER(HttpStatus.BAD_REQUEST, "지원하지 않는 소셜 로그인 제공자입니다."),
     OAUTH2_LOGIN_FAILED(HttpStatus.UNAUTHORIZED, "소셜 로그인에 실패했습니다."),
+    TURNSTILE_VERIFICATION_FAILED(HttpStatus.BAD_REQUEST, "사람 인증에 실패했습니다. 다시 시도해 주세요."),
 
     // 사용자
     USER_NOT_FOUND(HttpStatus.NOT_FOUND, "사용자를 찾을 수 없습니다."),

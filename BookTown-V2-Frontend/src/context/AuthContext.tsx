@@ -118,7 +118,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.removeItem('bt_mock_user');
   };
 
-  const login = async (email: string, password: string) => {
+  const login = async (email: string, password: string, turnstileToken?: string) => {
     if (isMockMode) {
       await new Promise((resolve) => setTimeout(resolve, 800));
       if (!email || !password) {
@@ -139,7 +139,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     try {
-      const response = await client.post('/auth/login', { email, password });
+      const response = await client.post('/auth/login', { email, password, turnstileToken });
       const { accessToken: token, accessTokenExpiresInMs } = response.data.data as AuthTokenPayload;
       applyToken(token, accessTokenExpiresInMs);
 
@@ -153,7 +153,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const signup = async (nickname: string, email: string, password: string) => {
+  const signup = async (nickname: string, email: string, password: string, turnstileToken?: string) => {
     if (isMockMode) {
       await new Promise((resolve) => setTimeout(resolve, 800));
       if (!nickname || !email || !password) {
@@ -173,7 +173,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     try {
-      const response = await client.post('/auth/signup', { nickname, email, password });
+      const response = await client.post('/auth/signup', { nickname, email, password, turnstileToken });
       const { accessToken: token, accessTokenExpiresInMs } = response.data.data as AuthTokenPayload;
       applyToken(token, accessTokenExpiresInMs);
 
