@@ -43,6 +43,8 @@ jobs:
 
       - name: 빌드
         run: npm run build
+        env:
+          VITE_TURNSTILE_SITE_KEY: ${{ vars.VITE_TURNSTILE_SITE_KEY }}
 
       - name: 빌드 결과물 업로드 (CD 단계용)
         if: github.ref == 'refs/heads/dev' && github.event_name == 'push'
