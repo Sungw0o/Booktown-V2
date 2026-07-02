@@ -44,6 +44,7 @@ public class GutendexMapper {
     public String firstAuthor(GutendexBookDto book) {
         return safeList(book.authors()).stream()
                 .map(GutendexAuthorDto::name)
+                .map(this::normalizeAuthorName)
                 .filter(name -> name != null && !name.isBlank())
                 .findFirst()
                 .orElse("Unknown");
@@ -106,6 +107,12 @@ public class GutendexMapper {
 
     private String nullToBlank(String value) {
         return value == null ? "" : value;
+    }
+
+    private String normalizeAuthorName(String value) {
+        if (value == null || !value.contains(",")) return value;
+        String[] parts = value.split(",", 2);
+        return (parts[1].trim() + " " + parts[0].trim()).trim();
     }
 
     private <T> List<T> safeList(List<T> values) {
