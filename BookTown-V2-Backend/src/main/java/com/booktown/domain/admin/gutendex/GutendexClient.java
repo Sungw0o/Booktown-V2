@@ -4,10 +4,15 @@ import com.booktown.global.exception.CustomException;
 import com.booktown.global.exception.ErrorCode;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatusCode;
+import org.springframework.core.io.buffer.DataBuffer;
+import org.springframework.core.io.buffer.DataBufferUtils;
 import org.springframework.stereotype.Component;
+import org.springframework.web.reactive.function.client.ExchangeStrategies;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
+import reactor.core.Exceptions;
 
+import java.io.ByteArrayOutputStream;
 import java.time.Duration;
 import java.util.Optional;
 
@@ -24,7 +29,13 @@ public class GutendexClient {
     private final WebClient webClient;
 
     public GutendexClient(WebClient.Builder webClientBuilder) {
-        this.webClient = webClientBuilder.baseUrl(BASE_URL).build();
+        ExchangeStrategies strategies = ExchangeStrategies.builder()
+                .codecs(configurer -> configurer.defaultCodecs().maxInMemorySize(MAX_TEXT_BYTES))
+                .build();
+        this.webClient = webClientBuilder
+                .baseUrl(BASE_URL)
+                .exchangeStrategies(strategies)
+                .build();
     }
 
     public GutendexPageDto search(String keyword, int page) {
@@ -74,22 +85,39 @@ public class GutendexClient {
             throw new CustomException(ErrorCode.INVALID_INPUT);
         }
         try {
-            byte[] bytes = webClient.get()
+            return webClient.get()
                     .uri(textUrl)
                     .retrieve()
-                    .bodyToMono(byte[].class)
+                    .bodyToFlux(DataBuffer.class)
+                    .reduce(new ByteArrayOutputStream(), this::appendChunk)
+                    .map(ByteArrayOutputStream::toByteArray)
                     .timeout(DOWNLOAD_TIMEOUT)
                     .blockOptional()
                     .orElseThrow(() -> new CustomException(ErrorCode.SERVICE_UNAVAILABLE));
-            if (bytes.length > MAX_TEXT_BYTES) {
-                throw new CustomException(ErrorCode.FILE_TOO_LARGE);
-            }
-            return bytes;
         } catch (CustomException e) {
             throw e;
         } catch (Exception e) {
+            Throwable unwrapped = Exceptions.unwrap(e);
+            if (unwrapped instanceof CustomException customException) {
+                throw customException;
+            }
             log.warn("Gutendex text download failed: url={}, message={}", textUrl, e.getMessage());
             throw new CustomException(ErrorCode.SERVICE_UNAVAILABLE);
+        }
+    }
+
+    private ByteArrayOutputStream appendChunk(ByteArrayOutputStream output, DataBuffer buffer) {
+        try {
+            int readableBytes = buffer.readableByteCount();
+            if (output.size() + readableBytes > MAX_TEXT_BYTES) {
+                throw new CustomException(ErrorCode.FILE_TOO_LARGE);
+            }
+            byte[] chunk = new byte[readableBytes];
+            buffer.read(chunk);
+            output.write(chunk, 0, chunk.length);
+            return output;
+        } finally {
+            DataBufferUtils.release(buffer);
         }
     }
 

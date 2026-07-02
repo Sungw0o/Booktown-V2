@@ -4,7 +4,7 @@ import { useAuth } from '../hooks/useAuth';
 import { getBookById, toggleBookmarkApi } from '../api/bookApi';
 import type { Book } from '../api/bookApi';
 import { DkTopNav, DkCover, DkBadge, DBack } from '../components/Primitives';
-import { Loader2, Heart, BookOpen, AlertCircle, FileText, Image, CheckSquare } from 'lucide-react';
+import { Loader2, Heart, BookOpen, AlertCircle, CheckSquare, Sparkles } from 'lucide-react';
 
 export const BookDetail: React.FC = () => {
   const { bookId } = useParams<{ bookId: string }>();
@@ -180,22 +180,14 @@ export const BookDetail: React.FC = () => {
               </div>
 
               {/* Action Buttons */}
-              <div className="grid grid-cols-3 gap-2 mt-8 border-t border-black/5 dark:border-white/5 pt-6">
+              <div className="grid grid-cols-1 sm:grid-cols-[1fr_160px] gap-2 mt-8 border-t border-black/5 dark:border-white/5 pt-6">
                 <button
-                  disabled={!book.hasSummary}
-                  onClick={() => navigate(`/books/${book.id}/summaries`)}
-                  className="glass-soft disabled:opacity-30 rounded-xl py-3 text-[11px] font-semibold text-slate-700 dark:text-white hover:bg-black/[0.04] dark:hover:bg-white/[0.06] transition flex flex-col items-center gap-1.5"
+                  disabled={!book.hasSummary && !book.hasIllust}
+                  onClick={() => navigate(`/books/${book.id}/read`)}
+                  className="rounded-xl py-3 text-xs font-semibold text-white bg-purple-600 hover:bg-purple-700 disabled:opacity-30 transition flex items-center justify-center gap-2"
                 >
-                  <FileText className="w-4 h-4 text-blue-500" />
-                  AI 요약본
-                </button>
-                <button
-                  disabled={!book.hasIllust}
-                  onClick={() => navigate(`/books/${book.id}/illustrations`)}
-                  className="glass-soft disabled:opacity-30 rounded-xl py-3 text-[11px] font-semibold text-slate-700 dark:text-white hover:bg-black/[0.04] dark:hover:bg-white/[0.06] transition flex flex-col items-center gap-1.5"
-                >
-                  <Image className="w-4 h-4 text-amber-500" />
-                  장면 갤러리
+                  <Sparkles className="w-4 h-4" />
+                  지금 읽으러 가기
                 </button>
                 <button
                   disabled={!book.hasQuiz}
