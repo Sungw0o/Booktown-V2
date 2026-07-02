@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Sun, Moon } from 'lucide-react';
+import { Sun, Moon, LogOut, UserCircle } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 
 /* ---------- Icons (monoline, currentColor) ---------- */
@@ -341,7 +341,7 @@ export const DkTabs: React.FC<DkTabsProps> = ({ active, go }) => {
     { id: 'home',    label: '탐색', Icon: DCompass  },
     { id: 'search',  label: '검색', Icon: DSearch   },
     { id: 'history', label: '기록', Icon: DClock    },
-    { id: 'me',      label: '마이', Icon: DUser     },
+    { id: 'me',      label: '마이페이지', Icon: DUser     },
   ];
   const activeTabs: Record<string, string> = {
     detail: 'home',
@@ -393,37 +393,22 @@ export interface DkTopNavProps {
   active: string;
   go: (tab: string) => void;
   onLogout?: () => void;
-  onExtendSession?: () => Promise<void> | void;
+  onExtendSession?: () => Promise<void> | void;  // kept for API compat
   nickname?: string;
   userRole?: string;
-  sessionExpiresAt?: number | null;
+  sessionExpiresAt?: number | null;  // kept for API compat
 }
-
-const formatSessionRemaining = (remainingMs: number) => {
-  const totalSeconds = Math.max(0, Math.floor(remainingMs / 1000));
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  if (minutes >= 60) {
-    const hours = Math.floor(minutes / 60);
-    const restMinutes = minutes % 60;
-    return restMinutes > 0 ? `${hours}시간 ${restMinutes}분` : `${hours}시간`;
-  }
-  return `${minutes}:${String(seconds).padStart(2, '0')}`;
-};
 
 export const DkTopNav: React.FC<DkTopNavProps> = ({
   active,
   go,
   onLogout,
-  onExtendSession,
   nickname = '민',
   userRole,
-  sessionExpiresAt,
 }) => {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
-  const [now, setNow] = useState(() => Date.now());
-  const [isExtendingSession, setIsExtendingSession] = useState(false);
+
   const links = [
     { id: 'home', label: '홈' },
     ...(userRole === 'ADMIN' ? [{ id: 'admin', label: '관리자' }] : []),
@@ -435,24 +420,6 @@ export const DkTopNav: React.FC<DkTopNavProps> = ({
     quiz: 'home',
   };
   const norm = activeTabs[active] || active;
-  const sessionRemainingMs = sessionExpiresAt ? sessionExpiresAt - now : null;
-  const hasSessionTimer = sessionRemainingMs !== null && sessionRemainingMs > 0;
-
-  useEffect(() => {
-    if (!sessionExpiresAt) return;
-    const timer = window.setInterval(() => setNow(Date.now()), 1000);
-    return () => window.clearInterval(timer);
-  }, [sessionExpiresAt]);
-
-  const handleExtendSession = async () => {
-    if (!onExtendSession || isExtendingSession) return;
-    try {
-      setIsExtendingSession(true);
-      await onExtendSession();
-    } finally {
-      setIsExtendingSession(false);
-    }
-  };
 
   return (
     <div className="absolute top-0 inset-x-0 z-30 glass-dark border-b border-black/5 dark:border-white/5">
@@ -496,9 +463,9 @@ export const DkTopNav: React.FC<DkTopNavProps> = ({
               <DBell className="w-4 h-4" />
             </button>
             {isNotificationOpen && (
-              <div className="absolute right-0 top-11 w-72 rounded-xl glass-strong border border-black/10 dark:border-white/10 p-3 shadow-2xl">
+              <div className="absolute right-0 top-12 w-72 rounded-2xl glass-strong border border-black/10 dark:border-white/10 p-3 shadow-2xl">
                 <div className="text-[11px] font-medium text-slate-700 dark:text-white/80">알림</div>
-                <div className="mt-3 rounded-lg bg-black/5 dark:bg-white/5 px-3 py-3 text-[12px] text-slate-500 dark:text-white/55">
+                <div className="mt-3 rounded-xl glass-soft px-3 py-3 text-[12px] text-slate-500 dark:text-white/55">
                   새 알림이 없습니다.
                 </div>
               </div>
@@ -511,56 +478,52 @@ export const DkTopNav: React.FC<DkTopNavProps> = ({
                 setIsProfileOpen((open) => !open);
                 setIsNotificationOpen(false);
               }}
-              className="w-8 h-8 rounded-full bg-black/5 dark:bg-white/10 text-slate-800 dark:text-white text-[12px] grid place-items-center font-medium hover:bg-black/10 dark:hover:bg-white/20 transition"
+              className={`w-8 h-8 rounded-full text-[12px] grid place-items-center font-semibold transition ${isProfileOpen ? 'ring-2 ring-[#7AA3D6]/60 bg-[#7AA3D6]/15 text-[#3E6FA9] dark:text-[#7AA3D6]' : 'bg-black/6 dark:bg-white/10 text-slate-800 dark:text-white hover:bg-black/10 dark:hover:bg-white/20'}`}
+              style={isProfileOpen ? { boxShadow: '0 0 0 3px rgba(122,163,214,0.15)' } : undefined}
               aria-label="프로필 메뉴"
               aria-expanded={isProfileOpen}
             >
               {nickname.slice(0, 1)}
             </button>
             {isProfileOpen && (
-              <div className="absolute right-0 top-11 w-40 rounded-xl glass-strong border border-black/10 dark:border-white/10 p-2 shadow-2xl">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsProfileOpen(false);
-                    go('me');
-                  }}
-                  className={`w-full flex items-center gap-2 rounded-full px-3 py-2 text-left text-[12px] transition ${norm === 'me' ? 'bg-black/10 text-slate-950 dark:bg-white/15 dark:text-white' : 'text-slate-600 hover:bg-black/5 dark:text-white/65 dark:hover:bg-white/10'}`}
-                >
-                  <span className={`w-2 h-2 rounded-full border ${norm === 'me' ? 'border-[#7AA3D6] bg-[#7AA3D6]' : 'border-current'}`} />
-                  마이
-                </button>
-                {onLogout && (
+              <div className="absolute right-0 top-12 w-52 rounded-2xl glass-strong border border-black/10 dark:border-white/10 overflow-hidden shadow-2xl">
+                {/* 헤더: 사용자 정보 */}
+                <div className="px-4 py-3 border-b border-black/6 dark:border-white/8">
+                  <div className="text-[13px] font-semibold text-slate-800 dark:text-white/92 truncate">{nickname}</div>
+                  <div className="text-[10px] font-mono text-slate-400 dark:text-white/38 mt-0.5 tracking-wider">
+                    {userRole === 'ADMIN' ? 'ADMIN' : 'USER'}
+                  </div>
+                </div>
+                {/* 메뉴 항목 */}
+                <div className="p-1.5">
                   <button
                     type="button"
                     onClick={() => {
                       setIsProfileOpen(false);
-                      onLogout();
+                      go('me');
                     }}
-                    className="mt-1 w-full flex items-center gap-2 rounded-full px-3 py-2 text-left text-[12px] text-slate-600 hover:bg-black/5 dark:text-white/65 dark:hover:bg-white/10 transition"
+                    className={`w-full flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-[12px] transition ${norm === 'me' ? 'bg-[#7AA3D6]/12 text-[#3E6FA9] dark:bg-[#7AA3D6]/15 dark:text-[#7AA3D6] font-medium' : 'text-slate-600 hover:bg-black/5 dark:text-white/65 dark:hover:bg-white/8'}`}
                   >
-                    <span className="w-2 h-2 rounded-full border border-current" />
-                    로그아웃
+                    <UserCircle className="w-3.5 h-3.5 shrink-0" />
+                    마이페이지
                   </button>
-                )}
+                  {onLogout && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsProfileOpen(false);
+                        onLogout();
+                      }}
+                      className="mt-0.5 w-full flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-[12px] text-slate-500 hover:bg-black/5 dark:text-white/50 dark:hover:bg-white/8 hover:text-[#D46A6A] dark:hover:text-[#D46A6A] transition"
+                    >
+                      <LogOut className="w-3.5 h-3.5 shrink-0" />
+                      로그아웃
+                    </button>
+                  )}
+                </div>
               </div>
             )}
           </div>
-          {hasSessionTimer && (
-            <div className="flex items-center gap-2 rounded-full bg-black/5 dark:bg-white/10 px-3 py-1.5 text-[11px] text-slate-600 dark:text-white/60">
-              <span className="font-mono tabular-nums">{formatSessionRemaining(sessionRemainingMs)}</span>
-              {onExtendSession && (
-                <button
-                  type="button"
-                  onClick={handleExtendSession}
-                  disabled={isExtendingSession}
-                  className="font-medium text-slate-800 hover:text-slate-950 disabled:opacity-50 dark:text-white/85 dark:hover:text-white"
-                >
-                  {isExtendingSession ? '연장 중' : '연장'}
-                </button>
-              )}
-            </div>
-          )}
         </div>
       </div>
     </div>

@@ -6,6 +6,12 @@ export interface UserProfile {
   nickname: string;
   email: string;
   role: 'USER' | 'ADMIN' | string;
+  profileImageUrl?: string;
+}
+
+export interface UpdateProfileRequest {
+  nickname?: string;
+  profileImageUrl?: string;
 }
 
 export interface BookmarkPage {
@@ -102,6 +108,25 @@ const toQuizHistory = (dto: QuizHistoryDto): QuizHistoryItem => {
     accuracy: dto.accuracy ?? dto.score ?? (total > 0 ? Math.round((correct / total) * 100) : 0),
     submittedAt: dto.submittedAt ?? dto.createdAt ?? new Date().toISOString(),
   };
+};
+
+export const updateProfile = async (
+  isMockMode: boolean,
+  req: UpdateProfileRequest,
+  currentProfile?: UserProfile | null,
+): Promise<UserProfile> => {
+  if (isMockMode) {
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    return {
+      nickname: req.nickname ?? currentProfile?.nickname ?? '민지',
+      email: currentProfile?.email ?? 'minji@example.com',
+      role: currentProfile?.role ?? 'USER',
+      profileImageUrl: req.profileImageUrl !== undefined ? (req.profileImageUrl || undefined) : currentProfile?.profileImageUrl,
+    };
+  }
+
+  const res = await client.patch<ApiResponse<UserProfile>>('/users/me', req);
+  return res.data.data;
 };
 
 export const getMyProfile = async (isMockMode: boolean, fallback?: UserProfile | null): Promise<UserProfile> => {
