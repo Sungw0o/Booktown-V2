@@ -1,5 +1,14 @@
 import client from './client';
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'https://api.booktown.shop';
+
+export const resolveApiAssetUrl = (url?: string | null): string | null => {
+  if (!url) return null;
+  if (/^https?:\/\//i.test(url) || url.startsWith('data:')) return url;
+  if (url.startsWith('/api/')) return `${API_BASE_URL}${url}`;
+  return url;
+};
+
 export interface Book {
   id: string;
   title: string;
@@ -103,7 +112,7 @@ const toBookSummary = (dto: BookSummaryDto): Book => ({
   genre: toGenreLabel(dto.genre),
   country: dto.country,
   description: '',
-  coverImageUrl: dto.coverImageUrl,
+  coverImageUrl: resolveApiAssetUrl(dto.coverImageUrl),
   isBookmarked: false,
   hasSummary: false,
   hasIllust: false,
@@ -119,7 +128,7 @@ const toBookDetail = (dto: BookDetailDto): Book => ({
   genre: toGenreLabel(dto.genre),
   country: dto.country,
   description: dto.description,
-  coverImageUrl: dto.coverImageUrl,
+  coverImageUrl: resolveApiAssetUrl(dto.coverImageUrl),
   isBookmarked: Boolean(dto.isBookmarked),
   hasSummary: dto.availableFeatures.summary,
   hasIllust: dto.availableFeatures.illustration,

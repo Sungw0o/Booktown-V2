@@ -6,12 +6,6 @@ import com.booktown.domain.illustration.repository.IllustrationDocumentRepositor
 import com.booktown.domain.illustration.repository.IllustrationJobRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.ai.image.ImageModel;
-import org.springframework.ai.image.ImageOptions;
-import org.springframework.ai.image.ImageOptionsBuilder;
-import org.springframework.ai.image.ImagePrompt;
-import org.springframework.ai.image.ImageResponse;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,7 +17,7 @@ public class IllustrationProcessor {
 
     private final IllustrationJobRepository illustrationJobRepository;
     private final IllustrationDocumentRepository illustrationDocumentRepository;
-    private final ObjectProvider<ImageModel> imageModelProvider;
+    private final GeminiImageClient geminiImageClient;
 
     @Async("illustrationProcessingExecutor")
     @Transactional
@@ -34,12 +28,7 @@ public class IllustrationProcessor {
 
         try {
             String prompt = buildPrompt(job);
-            ImageOptions options = ImageOptionsBuilder.builder()
-                    .model("dall-e-3")
-                    .build();
-            ImageModel imageModel = requireImageModel();
-            ImageResponse response = imageModel.call(new ImagePrompt(prompt, options));
-            String imageUrl = response.getResult().getOutput().getUrl();
+            String imageUrl = geminiImageClient.generateImageDataUrl(prompt);
 
             IllustrationDocument doc = IllustrationDocument.create(
                     job.getScene().getId(),
@@ -79,11 +68,4 @@ public class IllustrationProcessor {
         );
     }
 
-    private ImageModel requireImageModel() {
-        ImageModel imageModel = imageModelProvider.getIfAvailable();
-        if (imageModel == null) {
-            throw new IllegalStateException("AI image model is not configured.");
-        }
-        return imageModel;
-    }
 }
