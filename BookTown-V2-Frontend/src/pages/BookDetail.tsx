@@ -96,6 +96,9 @@ export const BookDetail: React.FC = () => {
     );
   }
 
+  const canRead = book.hasSummary || book.hasIllust || book.chapters.length > 0;
+  const canQuiz = book.hasQuiz;
+
   return (
     <div className="min-h-screen dk-surface flex flex-col p-6 pt-24 selection:bg-purple-500 selection:text-white relative">
       <div className="dk-grain" />
@@ -182,21 +185,28 @@ export const BookDetail: React.FC = () => {
               {/* Action Buttons */}
               <div className="grid grid-cols-1 sm:grid-cols-[1fr_160px] gap-2 mt-8 border-t border-black/5 dark:border-white/5 pt-6">
                 <button
-                  disabled={!book.hasSummary && !book.hasIllust}
+                  disabled={!canRead}
                   onClick={() => navigate(`/books/${book.id}/read`)}
+                  title={canRead ? '요약과 장면을 함께 읽습니다.' : '원문 처리 또는 AI 요약 생성이 끝나면 활성화됩니다.'}
                   className="rounded-xl py-3 text-xs font-semibold text-white bg-purple-600 hover:bg-purple-700 disabled:opacity-30 transition flex items-center justify-center gap-2"
                 >
                   <Sparkles className="w-4 h-4" />
                   지금 읽으러 가기
                 </button>
                 <button
-                  disabled={!book.hasQuiz}
+                  disabled={!canQuiz}
                   onClick={() => navigate(`/books/${book.id}/quiz`)}
+                  title={canQuiz ? '퀴즈를 풉니다.' : '원문 처리와 퀴즈 생성이 끝나면 활성화됩니다.'}
                   className="glass-soft disabled:opacity-30 rounded-xl py-3 text-[11px] font-semibold text-slate-700 dark:text-white hover:bg-black/[0.04] dark:hover:bg-white/[0.06] transition flex flex-col items-center gap-1.5"
                 >
                   <CheckSquare className="w-4 h-4 text-emerald-500" />
                   퀴즈 풀기
                 </button>
+                {(!canRead || !canQuiz) && (
+                  <p className="sm:col-span-2 text-[11px] text-slate-500 dark:text-white/40 leading-relaxed mt-1">
+                    원문 처리 Job이 완료되어 목차와 장면 데이터가 준비되면 읽기와 퀴즈 기능이 활성화됩니다.
+                  </p>
+                )}
               </div>
             </div>
           </div>
