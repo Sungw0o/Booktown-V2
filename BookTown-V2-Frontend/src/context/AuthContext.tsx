@@ -201,6 +201,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     applyToken(token, accessTokenExpiresInMs);
   };
 
+  const updateUser = useCallback((patch: Partial<User>) => {
+    setUser((prev) => (prev ? { ...prev, ...patch } : null));
+  }, []);
+
   const logout = async () => {
     if (isMockMode) {
       clearAuthState();
@@ -236,6 +240,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         signup,
         extendSession,
         logout,
+        updateUser,
       }}
     >
       {children}

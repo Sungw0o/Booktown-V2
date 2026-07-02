@@ -4,6 +4,7 @@ export interface User {
   nickname: string;
   email: string;
   role: string;
+  profileImageUrl?: string;
 }
 
 export interface AuthContextType {
@@ -18,6 +19,7 @@ export interface AuthContextType {
   signup: (nickname: string, email: string, password: string, turnstileToken?: string) => Promise<void>;
   extendSession: () => Promise<void>;
   logout: () => Promise<void>;
+  updateUser: (patch: Partial<User>) => void;
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
