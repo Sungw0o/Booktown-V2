@@ -2,6 +2,27 @@
 
 Prometheus, Grafana, Loki, Grafana Alloy 운영 설정입니다.
 
+## 로컬 모니터링 빠른 실행
+
+로컬 의존 서비스만 실행합니다.
+
+```bash
+scripts/local-infra.sh up
+```
+
+백엔드 컨테이너와 모니터링 스택까지 함께 실행합니다.
+
+```bash
+scripts/local-infra.sh monitor
+```
+
+- API: http://localhost:8080/api/v1
+- Grafana: http://localhost:3001
+- Prometheus: http://localhost:9090
+- Loki: http://localhost:3100
+
+자세한 절차는 `docs/operations/runbook.md`를 참고합니다.
+
 ## 접속
 
 기본 운영 서버에서는 모니터링 포트를 외부에 열지 않고 localhost에만 바인딩합니다.

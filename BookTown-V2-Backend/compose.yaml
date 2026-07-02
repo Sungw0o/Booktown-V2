@@ -1,26 +1,281 @@
 services:
+  backend:
+    profiles:
+      - app
+    build:
+      context: .
+    restart: unless-stopped
+    ports:
+      - '8080:8080'
+      - '8081:8081'
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/booktown?serverTimezone=Asia/Seoul&characterEncoding=UTF-8&allowPublicKeyRetrieval=true&useSSL=false
+      SPRING_DATASOURCE_USERNAME: booktown
+      SPRING_DATASOURCE_PASSWORD: booktown
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      MONGODB_URI: mongodb://booktown:booktown@mongodb:27017/booktown?authSource=admin
+      CHROMA_HOST: http://chroma
+      CHROMA_PORT: 8000
+      JWT_SECRET: local-dev-jwt-secret-must-be-at-least-32-bytes
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+      chroma:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD-SHELL', 'timeout 5 bash -c "</dev/tcp/127.0.0.1/8080"']
+      interval: 20s
+      timeout: 5s
+      retries: 6
+      start_period: 60s
+    logging:
+      driver: json-file
+      options:
+        max-size: '10m'
+        max-file: '3'
+
   chroma:
-    image: 'chromadb/chroma:latest'
+    image: chromadb/chroma:1.0.12
+    restart: unless-stopped
     ports:
       - '8000:8000'
+    volumes:
+      - chroma_data:/chroma/chroma
+    healthcheck:
+      test: ['CMD-SHELL', 'python -c "import urllib.request; urllib.request.urlopen(\"http://localhost:8000/api/v2/heartbeat\", timeout=3)"']
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    logging:
+      driver: json-file
+      options:
+        max-size: '10m'
+        max-file: '3'
+
   mongodb:
-    image: 'mongo:latest'
+    image: mongo:7.0
+    restart: unless-stopped
     environment:
-      - 'MONGO_INITDB_DATABASE=booktown'
-      - 'MONGO_INITDB_ROOT_PASSWORD=booktown'
-      - 'MONGO_INITDB_ROOT_USERNAME=booktown'
+      MONGO_INITDB_DATABASE: booktown
+      MONGO_INITDB_ROOT_PASSWORD: booktown
+      MONGO_INITDB_ROOT_USERNAME: booktown
     ports:
       - '27017:27017'
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ['CMD-SHELL', 'mongosh --quiet -u "$$MONGO_INITDB_ROOT_USERNAME" -p "$$MONGO_INITDB_ROOT_PASSWORD" --authenticationDatabase admin --eval "db.adminCommand(\"ping\")"']
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    logging:
+      driver: json-file
+      options:
+        max-size: '10m'
+        max-file: '3'
+
   mysql:
-    image: 'mysql:latest'
+    image: mysql:8.4.5
+    restart: unless-stopped
     environment:
-      - 'MYSQL_DATABASE=booktown'
-      - 'MYSQL_PASSWORD=booktown'
-      - 'MYSQL_ROOT_PASSWORD=booktown-root'
-      - 'MYSQL_USER=booktown'
+      MYSQL_DATABASE: booktown
+      MYSQL_PASSWORD: booktown
+      MYSQL_ROOT_PASSWORD: booktown-root
+      MYSQL_USER: booktown
     ports:
       - '3306:3306'
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ['CMD-SHELL', 'mysqladmin ping -h localhost -u root -p"$$MYSQL_ROOT_PASSWORD"']
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: '10m'
+        max-file: '3'
+
   redis:
-    image: 'redis:latest'
+    image: redis:7.4.3-alpine
+    restart: unless-stopped
     ports:
       - '6379:6379'
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    logging:
+      driver: json-file
+      options:
+        max-size: '10m'
+        max-file: '3'
+
+  prometheus:
+    profiles:
+      - monitoring
+    image: prom/prometheus:v2.55.1
+    restart: unless-stopped
+    ports:
+      - '9090:9090'
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/prometheus/rules:/etc/prometheus/rules:ro
+      - prometheus_data:/prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=3d
+      - --storage.tsdb.retention.size=1GB
+      - --web.enable-lifecycle
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
+    depends_on:
+      alertmanager:
+        condition: service_started
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://localhost:9090/-/ready >/dev/null']
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    logging:
+      driver: json-file
+      options:
+        max-size: '10m'
+        max-file: '3'
+
+  grafana:
+    profiles:
+      - monitoring
+    image: grafana/grafana:11.4.0
+    restart: unless-stopped
+    ports:
+      - '3001:3000'
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-change-me}
+      GF_USERS_ALLOW_SIGN_UP: 'false'
+      GF_SERVER_ROOT_URL: ${GRAFANA_ROOT_URL:-http://localhost:3001}
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./monitoring/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      prometheus:
+        condition: service_healthy
+      loki:
+        condition: service_started
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://localhost:3000/api/health >/dev/null']
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    logging:
+      driver: json-file
+      options:
+        max-size: '10m'
+        max-file: '3'
+
+  loki:
+    profiles:
+      - monitoring
+    image: grafana/loki:2.9.8
+    restart: unless-stopped
+    ports:
+      - '3100:3100'
+    volumes:
+      - ./monitoring/loki/loki-config.yml:/etc/loki/local-config.yaml:ro
+      - loki_data:/loki
+    command: -config.file=/etc/loki/local-config.yaml
+    logging:
+      driver: json-file
+      options:
+        max-size: '10m'
+        max-file: '3'
+
+  alertmanager:
+    profiles:
+      - monitoring
+    image: prom/alertmanager:v0.27.0
+    restart: unless-stopped
+    ports:
+      - '9093:9093'
+    volumes:
+      - ./monitoring/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager_data:/alertmanager
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+      - --storage.path=/alertmanager
+    logging:
+      driver: json-file
+      options:
+        max-size: '10m'
+        max-file: '3'
+
+  node-exporter:
+    profiles:
+      - monitoring
+    image: prom/node-exporter:v1.8.2
+    restart: unless-stopped
+    ports:
+      - '9100:9100'
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - --path.procfs=/host/proc
+      - --path.sysfs=/host/sys
+      - --path.rootfs=/rootfs
+      - --collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)
+    logging:
+      driver: json-file
+      options:
+        max-size: '10m'
+        max-file: '3'
+
+  cadvisor:
+    profiles:
+      - monitoring
+    image: gcr.io/cadvisor/cadvisor:v0.49.1
+    restart: unless-stopped
+    ports:
+      - '8082:8080'
+    privileged: true
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    logging:
+      driver: json-file
+      options:
+        max-size: '10m'
+        max-file: '3'
+
+volumes:
+  mysql_data:
+  redis_data:
+  mongo_data:
+  chroma_data:
+  prometheus_data:
+  grafana_data:
+  loki_data:
+  alertmanager_data:
