@@ -1,5 +1,5 @@
 import client from './client';
-import { MOCK_BOOKS } from './bookApi';
+import { MOCK_BOOKS, resolveApiAssetUrl } from './bookApi';
 import type { Book, PageMeta } from './bookApi';
 
 export interface UserProfile {
@@ -88,7 +88,7 @@ const toBook = (dto: BookmarkedBookDto): Book => ({
   author: dto.author,
   genre: dto.genre,
   description: '',
-  coverImageUrl: dto.coverImageUrl,
+  coverImageUrl: resolveApiAssetUrl(dto.coverImageUrl),
   isBookmarked: true,
   hasSummary: false,
   hasIllust: false,

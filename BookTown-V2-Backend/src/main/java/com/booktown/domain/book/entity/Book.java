@@ -88,6 +88,10 @@ public class Book {
         this.hasContent = true;
     }
 
+    public void updateCoverImageUrl(String coverImageUrl) {
+        this.coverImageUrl = coverImageUrl;
+    }
+
     @PrePersist
     void onCreate() {
         this.createdAt = LocalDateTime.now();

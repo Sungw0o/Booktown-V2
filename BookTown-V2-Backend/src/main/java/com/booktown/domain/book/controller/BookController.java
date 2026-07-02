@@ -4,6 +4,7 @@ import com.booktown.domain.auth.security.UserPrincipal;
 import com.booktown.domain.book.controller.api.BookApi;
 import com.booktown.domain.book.dto.BookDetailResponse;
 import com.booktown.domain.book.dto.BookSummaryResponse;
+import com.booktown.domain.book.service.BookCoverService;
 import com.booktown.domain.book.service.BookService;
 import com.booktown.global.response.ApiResponse;
 import com.booktown.global.response.PageMeta;
@@ -17,6 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class BookController implements BookApi {
 
     private final BookService bookService;
+    private final BookCoverService bookCoverService;
 
     @Override
     public ApiResponse<Page<BookSummaryResponse>> getBooks(int page, int size, String sort, String genre) {
@@ -28,6 +30,14 @@ public class BookController implements BookApi {
     public ApiResponse<BookDetailResponse> getBook(Long bookId, UserPrincipal principal) {
         Long userId = (principal != null) ? principal.getId() : null;
         return ApiResponse.success(bookService.getBook(bookId, userId));
+    }
+
+    @Override
+    public ResponseEntity<byte[]> getCoverImage(Long bookId) {
+        BookCoverService.CoverImage image = bookCoverService.getCoverImage(bookId);
+        return ResponseEntity.ok()
+                .contentType(image.mediaType())
+                .body(image.data());
     }
 
     @Override

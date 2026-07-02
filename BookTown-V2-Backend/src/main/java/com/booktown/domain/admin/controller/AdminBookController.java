@@ -2,12 +2,14 @@ package com.booktown.domain.admin.controller;
 
 import com.booktown.domain.admin.controller.api.AdminBookApi;
 import com.booktown.domain.admin.dto.ContentJobResponse;
+import com.booktown.domain.admin.dto.GeneratedCoverResponse;
 import com.booktown.domain.admin.dto.RegisterBookRequest;
 import com.booktown.domain.admin.dto.RegisterBookResponse;
 import com.booktown.domain.admin.gutendex.GutendexBookSearchResponse;
 import com.booktown.domain.admin.gutendex.GutendexImportRequest;
 import com.booktown.domain.admin.gutendex.GutendexImportResponse;
 import com.booktown.domain.admin.service.AdminBookService;
+import com.booktown.domain.book.service.BookCoverService;
 import com.booktown.global.response.ApiResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -20,6 +22,7 @@ import org.springframework.web.multipart.MultipartFile;
 public class AdminBookController implements AdminBookApi {
 
     private final AdminBookService adminBookService;
+    private final BookCoverService bookCoverService;
 
     @Override
     public ResponseEntity<ApiResponse<RegisterBookResponse>> registerBook(RegisterBookRequest request) {
@@ -47,5 +50,10 @@ public class AdminBookController implements AdminBookApi {
     @Override
     public ApiResponse<ContentJobResponse> getContentJob(Long jobId) {
         return ApiResponse.success(adminBookService.getContentJob(jobId));
+    }
+
+    @Override
+    public ApiResponse<GeneratedCoverResponse> generateCover(Long bookId) {
+        return ApiResponse.success(bookCoverService.generateCover(bookId));
     }
 }

@@ -38,6 +38,12 @@ public interface BookApi {
             @AuthenticationPrincipal UserPrincipal principal
     );
 
+    @GetMapping("/{bookId}/cover-image")
+    @Operation(summary = "AI 표지 이미지", description = "MongoDB에 저장된 AI 생성 표지 이미지를 반환합니다.")
+    ResponseEntity<byte[]> getCoverImage(
+            @PathVariable Long bookId
+    );
+
     @GetMapping("/search")
     @Operation(summary = "도서 검색", description = "제목·저자 키워드 검색. 빈 검색어는 400 반환.")
     ApiResponse<Page<BookSummaryResponse>> searchBooks(

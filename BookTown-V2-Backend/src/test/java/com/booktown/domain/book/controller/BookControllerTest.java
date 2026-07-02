@@ -3,6 +3,7 @@ package com.booktown.domain.book.controller;
 import com.booktown.domain.auth.security.UserPrincipal;
 import com.booktown.domain.book.dto.BookDetailResponse;
 import com.booktown.domain.book.dto.BookSummaryResponse;
+import com.booktown.domain.book.service.BookCoverService;
 import com.booktown.domain.book.service.BookService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -32,12 +33,14 @@ class BookControllerTest {
 
     private MockMvc mockMvc;
     private BookService bookService;
+    private BookCoverService bookCoverService;
 
     @BeforeEach
     void setUp() {
         bookService = mock(BookService.class);
+        bookCoverService = mock(BookCoverService.class);
         mockMvc = MockMvcBuilders
-                .standaloneSetup(new BookController(bookService))
+                .standaloneSetup(new BookController(bookService, bookCoverService))
                 .setCustomArgumentResolvers(new AuthenticationPrincipalArgumentResolver())
                 .build();
     }
