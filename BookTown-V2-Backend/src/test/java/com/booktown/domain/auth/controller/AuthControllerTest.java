@@ -62,14 +62,15 @@ class AuthControllerTest {
                         .content(objectMapper.writeValueAsString(new SignupRequest(
                                 "user@example.com",
                                 "책고을",
-                                "password123"
+                                "password123",
+                                "turnstile-token"
                         ))))
                 .andExpect(status().isOk())
                 .andExpect(cookie().value("refreshToken", "refresh-token"))
                 .andExpect(jsonPath("$.data.accessToken").value("access-token"))
                 .andExpect(jsonPath("$.data.accessTokenExpiresInMs").value(3600000));
 
-        verify(authService).signup(eq(new SignupRequest("user@example.com", "책고을", "password123")));
+        verify(authService).signup(eq(new SignupRequest("user@example.com", "책고을", "password123", "turnstile-token")));
     }
 
     @Test
@@ -80,13 +81,14 @@ class AuthControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new LoginRequest(
                                 "user@example.com",
-                                "password123"
+                                "password123",
+                                "turnstile-token"
                         ))))
                 .andExpect(status().isOk())
                 .andExpect(cookie().value("refreshToken", "refresh-token"))
                 .andExpect(jsonPath("$.data.accessToken").value("access-token"));
 
-        verify(authService).login(eq(new LoginRequest("user@example.com", "password123")));
+        verify(authService).login(eq(new LoginRequest("user@example.com", "password123", "turnstile-token")));
     }
 
     @Test
