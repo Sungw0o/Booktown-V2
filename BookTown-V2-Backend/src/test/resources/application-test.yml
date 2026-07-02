@@ -15,8 +15,13 @@ spring:
     mongodb:
       uri: mongodb://localhost:27017/testdb
   ai:
-    openai:
-      api-key: test-key
+    model:
+      chat: none
+      embedding:
+        text: none
+    google:
+      genai:
+        api-key: test-key
     vectorstore:
       chroma:
         initialize-schema: false
