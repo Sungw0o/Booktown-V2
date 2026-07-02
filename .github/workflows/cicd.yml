@@ -166,10 +166,40 @@ jobs:
         if: env.SONAR_TOKEN == '' || env.SONAR_PROJECT_KEY == '' || env.SONAR_ORGANIZATION == ''
         run: echo "SONAR_TOKEN, SONAR_PROJECT_KEY, SONAR_ORGANIZATION 설정 후 SonarCloud 분석이 실행됩니다."
 
+  backend-local-ops:
+    name: Backend / Local Ops Config
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    timeout-minutes: 10
+    if: needs.detect-changes.outputs.backend == 'true' || needs.detect-changes.outputs.workflow == 'true'
+
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
+
+      - name: Compose 설정 검증
+        run: docker compose -f BookTown-V2-Backend/compose.yaml --profile app --profile monitoring config --quiet
+
+      - name: Prometheus 설정 검증
+        run: |
+          docker run --rm \
+            -v "$PWD/BookTown-V2-Backend/monitoring/prometheus:/etc/prometheus:ro" \
+            --entrypoint promtool \
+            prom/prometheus:v2.55.1 \
+            check config /etc/prometheus/prometheus.yml
+
+      - name: k6 스크립트 검증
+        run: |
+          docker run --rm \
+            -v "$PWD/BookTown-V2-Backend/performance/k6:/scripts:ro" \
+            grafana/k6:0.54.0 \
+            inspect /scripts/health-check.js
+
   backend-cd:
     name: Backend / Deploy
     runs-on: ubuntu-latest
-    needs: [detect-changes, backend-ci]
+    needs: [detect-changes, backend-ci, backend-local-ops]
     if: |
       (needs.detect-changes.outputs.backend == 'true' &&
         github.event_name == 'push' &&
