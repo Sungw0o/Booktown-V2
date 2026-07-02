@@ -22,19 +22,32 @@ import java.util.List;
 public class SummaryProcessor {
 
     private static final String SUMMARY_PROMPT = """
-            다음은 고전문학 원문의 일부입니다. 이 내용을 바탕으로 핵심 내용을 한국어로 요약해주세요.
-            독자가 작품의 주제, 등장인물, 주요 사건을 이해할 수 있도록 300~500자로 작성해주세요.
+            당신은 고전문학 독서 플랫폼의 한국어 요약 에디터입니다.
+            아래 도서 원문 발췌를 바탕으로 독자가 작품을 빠르게 이해할 수 있는 요약을 작성해주세요.
+
+            요구사항:
+            - 한국어 Markdown 형식
+            - 700~1,000자
+            - 핵심 줄거리, 주요 인물, 주제 의식을 구분
+            - 원문에 없는 사실을 단정하지 말 것
+            - 대화체가 아니라 차분한 해설문으로 작성
+
+            [도서]
+            제목: %s
+            저자: %s
 
             [참고 원문]
             %s
 
             [요약]
             """;
+    private static final int MAX_CONTEXT_CHARS = 18_000;
+    private static final int MAX_CHAPTER_EXCERPT_CHARS = 2_400;
 
     private final SummaryJobRepository summaryJobRepository;
     private final SummaryDocumentRepository summaryDocumentRepository;
     private final ChapterRepository chapterRepository;
-    private final RagService ragService;
+    private final ObjectProvider<RagService> ragServiceProvider;
     private final ObjectProvider<ChatClient> chatClientProvider;
 
     @Async("summaryProcessingExecutor")
@@ -49,14 +62,21 @@ public class SummaryProcessor {
             Long userId = job.getUser().getId();
 
             List<Chapter> chapters = chapterRepository.findAllByBookIdOrderByChapterNumberAsc(bookId);
-
-            ragService.indexChapters(bookId, chapters);
-
-            String context = ragService.retrieveContext(bookId, "이 작품의 주제와 주요 사건");
+            String context = buildRagContextIfAvailable(bookId, chapters);
+            if (context.isBlank()) {
+                context = buildContext(chapters);
+            }
+            if (context.isBlank()) {
+                throw new IllegalStateException("Book content is empty.");
+            }
 
             ChatClient chatClient = requireChatClient();
             String summaryContent = chatClient.prompt()
-                    .user(SUMMARY_PROMPT.formatted(context))
+                    .user(SUMMARY_PROMPT.formatted(
+                            job.getBook().getTitle(),
+                            job.getBook().getAuthor(),
+                            context
+                    ))
                     .call()
                     .content();
 
@@ -71,6 +91,54 @@ public class SummaryProcessor {
             job.markFailed(e.getMessage(), isAiServiceError(e));
             summaryJobRepository.save(job);
         }
+    }
+
+    private String buildRagContextIfAvailable(Long bookId, List<Chapter> chapters) {
+        RagService ragService = ragServiceProvider.getIfAvailable();
+        if (ragService == null) {
+            return "";
+        }
+
+        try {
+            ragService.indexChapters(bookId, chapters);
+            String context = ragService.retrieveContext(bookId, "이 작품의 핵심 줄거리, 주요 인물, 주제 의식");
+            if (!context.isBlank()) {
+                log.info("SummaryJob uses Chroma RAG context for bookId={}", bookId);
+            }
+            return context;
+        } catch (Exception e) {
+            log.warn("Chroma RAG context unavailable for bookId={}: {}", bookId, e.getMessage());
+            return "";
+        }
+    }
+
+    private String buildContext(List<Chapter> chapters) {
+        StringBuilder context = new StringBuilder();
+        for (Chapter chapter : chapters) {
+            if (chapter.getContent() == null || chapter.getContent().isBlank()) {
+                continue;
+            }
+
+            String excerpt = excerpt(chapter.getContent(), MAX_CHAPTER_EXCERPT_CHARS);
+            String block = "[%d. %s]%n%s%n%n".formatted(
+                    chapter.getChapterNumber(),
+                    chapter.getTitle(),
+                    excerpt
+            );
+            if (context.length() + block.length() > MAX_CONTEXT_CHARS) {
+                break;
+            }
+            context.append(block);
+        }
+        return context.toString().trim();
+    }
+
+    private String excerpt(String content, int maxChars) {
+        String normalized = content.replaceAll("\\s+", " ").trim();
+        if (normalized.length() <= maxChars) {
+            return normalized;
+        }
+        return normalized.substring(0, maxChars) + "...";
     }
 
     private boolean isAiServiceError(Exception e) {
