@@ -1,11 +1,15 @@
 package com.booktown.domain.illustration.service;
 
+import com.booktown.global.exception.CustomException;
+import com.booktown.global.exception.ErrorCode;
 import com.fasterxml.jackson.databind.JsonNode;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientResponseException;
 
 import java.util.Base64;
 import java.util.Iterator;
@@ -14,6 +18,7 @@ import java.util.Map;
 
 @Component
 @RequiredArgsConstructor
+@Slf4j
 public class GeminiImageClient {
 
     private static final String INTERACTIONS_URL = "https://generativelanguage.googleapis.com/v1beta/interactions";
@@ -26,7 +31,7 @@ public class GeminiImageClient {
     @Value("${booktown.ai.gemini.image.model:gemini-3.1-flash-image}")
     private String model;
 
-    @Value("${booktown.ai.gemini.image.mime-type:image/png}")
+    @Value("${booktown.ai.gemini.image.mime-type:image/jpeg}")
     private String mimeType;
 
     @Value("${booktown.ai.gemini.image.aspect-ratio:3:4}")
@@ -40,23 +45,30 @@ public class GeminiImageClient {
             throw new IllegalStateException("Gemini API key is not configured.");
         }
 
-        JsonNode response = restClientBuilder.build()
-                .post()
-                .uri(INTERACTIONS_URL)
-                .header("x-goog-api-key", apiKey)
-                .contentType(MediaType.APPLICATION_JSON)
-                .body(Map.of(
-                        "model", model,
-                        "input", List.of(Map.of("type", "text", "text", prompt)),
-                        "response_format", Map.of(
-                                "type", "image",
-                                "mime_type", mimeType,
-                                "aspect_ratio", aspectRatio,
-                                "image_size", imageSize
-                        )
-                ))
-                .retrieve()
-                .body(JsonNode.class);
+        JsonNode response;
+        try {
+            response = restClientBuilder.build()
+                    .post()
+                    .uri(INTERACTIONS_URL)
+                    .header("x-goog-api-key", apiKey)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(Map.of(
+                            "model", model,
+                            "input", List.of(Map.of("type", "text", "text", prompt)),
+                            "response_format", Map.of(
+                                    "type", "image",
+                                    "mime_type", mimeType,
+                                    "aspect_ratio", aspectRatio,
+                                    "image_size", imageSize
+                            )
+                    ))
+                    .retrieve()
+                    .body(JsonNode.class);
+        } catch (RestClientResponseException e) {
+            log.warn("Gemini image generation failed: status={} body={}",
+                    e.getStatusCode().value(), sanitizeResponse(e.getResponseBodyAsString()));
+            throw new CustomException(ErrorCode.AI_SERVICE_ERROR);
+        }
 
         String imageData = extractImageData(response);
         if (imageData == null || imageData.isBlank()) {
@@ -99,6 +111,14 @@ public class GeminiImageClient {
             }
         }
         return null;
+    }
+
+    private String sanitizeResponse(String responseBody) {
+        if (responseBody == null || responseBody.isBlank()) {
+            return "";
+        }
+        String singleLine = responseBody.replaceAll("\\s+", " ").trim();
+        return singleLine.length() > 700 ? singleLine.substring(0, 700) + "..." : singleLine;
     }
 
     public record GeneratedImage(String mimeType, byte[] bytes) {
