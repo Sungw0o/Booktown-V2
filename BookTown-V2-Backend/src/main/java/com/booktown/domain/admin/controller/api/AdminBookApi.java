@@ -1,6 +1,7 @@
 package com.booktown.domain.admin.controller.api;
 
 import com.booktown.domain.admin.dto.ContentJobResponse;
+import com.booktown.domain.admin.dto.GeneratedCoverResponse;
 import com.booktown.domain.admin.dto.RegisterBookRequest;
 import com.booktown.domain.admin.dto.RegisterBookResponse;
 import com.booktown.domain.admin.gutendex.GutendexBookSearchResponse;
@@ -59,5 +60,11 @@ public interface AdminBookApi {
     @Operation(summary = "원문 처리 Job 조회", description = "jobId로 원문 처리 상태를 조회합니다.")
     ApiResponse<ContentJobResponse> getContentJob(
             @PathVariable Long jobId
+    );
+
+    @PostMapping("/books/{bookId}/cover")
+    @Operation(summary = "AI 표지 생성", description = "Gemini 이미지 모델로 도서 표지를 생성하고 도서 coverImageUrl을 갱신합니다.")
+    ApiResponse<GeneratedCoverResponse> generateCover(
+            @PathVariable Long bookId
     );
 }

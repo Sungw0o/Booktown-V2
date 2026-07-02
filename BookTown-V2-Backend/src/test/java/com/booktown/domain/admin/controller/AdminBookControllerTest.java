@@ -4,6 +4,7 @@ import com.booktown.domain.admin.dto.ContentJobResponse;
 import com.booktown.domain.admin.dto.RegisterBookResponse;
 import com.booktown.domain.admin.entity.ContentJobStatus;
 import com.booktown.domain.admin.service.AdminBookService;
+import com.booktown.domain.book.service.BookCoverService;
 import com.booktown.global.exception.CustomException;
 import com.booktown.global.exception.ErrorCode;
 import com.booktown.global.exception.GlobalExceptionHandler;
@@ -33,14 +34,16 @@ class AdminBookControllerTest {
 
     private MockMvc mockMvc;
     private AdminBookService adminBookService;
+    private BookCoverService bookCoverService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @BeforeEach
     void setUp() {
         adminBookService = mock(AdminBookService.class);
+        bookCoverService = mock(BookCoverService.class);
         BooktownMetrics metrics = mock(BooktownMetrics.class);
         mockMvc = MockMvcBuilders
-                .standaloneSetup(new AdminBookController(adminBookService))
+                .standaloneSetup(new AdminBookController(adminBookService, bookCoverService))
                 .setControllerAdvice(new GlobalExceptionHandler(metrics))
                 .build();
     }

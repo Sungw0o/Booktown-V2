@@ -7,12 +7,20 @@ import {
   getContentJob,
   searchGutendexBooks,
   importGutendexBook,
+  generateBookCover,
   type RegisterBookRequest,
   type GutendexBookSearchItem,
   AdminApiError,
   type ContentJob,
   type ContentJobStatus,
 } from '../api/adminApi';
+import {
+  createSummary,
+  getSummaryJob,
+  type SummaryJob,
+  type SummaryJobStatus,
+} from '../api/summaryApi';
+import { resolveApiAssetUrl } from '../api/bookApi';
 import {
   Activity,
   Server,
@@ -32,6 +40,7 @@ import {
   AlertCircle,
   Search,
   Download,
+  Sparkles,
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { DkTopNav } from '../components/Primitives';
@@ -110,6 +119,25 @@ const JobStatusBadge: React.FC<{ status: ContentJobStatus }> = ({ status }) => (
   </span>
 );
 
+const SUMMARY_STATUS_STYLE: Record<SummaryJobStatus, string> = {
+  QUEUED: 'bg-slate-500/10 text-slate-600 dark:text-slate-300',
+  PROCESSING: 'bg-violet-500/10 text-violet-600 dark:text-violet-300',
+  COMPLETED: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
+  FAILED: 'bg-red-500/10 text-red-500 dark:text-red-400',
+};
+const SUMMARY_STATUS_LABEL: Record<SummaryJobStatus, string> = {
+  QUEUED: '대기 중', PROCESSING: '요약 중', COMPLETED: '완료', FAILED: '실패',
+};
+
+const SummaryStatusBadge: React.FC<{ status: SummaryJobStatus }> = ({ status }) => (
+  <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold ${SUMMARY_STATUS_STYLE[status]}`}>
+    {status === 'PROCESSING' && <Loader2 className="w-3 h-3 animate-spin" />}
+    {status === 'COMPLETED' && <CheckCircle className="w-3 h-3" />}
+    {status === 'FAILED' && <XCircle className="w-3 h-3" />}
+    {SUMMARY_STATUS_LABEL[status]}
+  </span>
+);
+
 // ─── Book Register Panel ──────────────────────────────────────────────────────
 
 type RegisterStep = 'meta' | 'upload' | 'polling' | 'done';
@@ -172,14 +200,72 @@ const BookRegisterPanel: React.FC<{ isMockMode: boolean }> = ({ isMockMode }) =>
   const [gutendexLoading, setGutendexLoading] = useState(false);
   const [gutendexError, setGutendexError] = useState<string | null>(null);
   const [gutendexImportingId, setGutendexImportingId] = useState<number | null>(null);
+  const [summaryJob, setSummaryJob] = useState<SummaryJob | null>(null);
+  const [summaryLoading, setSummaryLoading] = useState(false);
+  const [summaryError, setSummaryError] = useState<string | null>(null);
+  const [coverLoading, setCoverLoading] = useState(false);
+  const [coverError, setCoverError] = useState<string | null>(null);
+  const [coverUrl, setCoverUrl] = useState<string | null>(null);
   const fileInputRef                = useRef<HTMLInputElement>(null);
   const pollRef                     = useRef<ReturnType<typeof setInterval> | null>(null);
+  const summaryPollRef              = useRef<ReturnType<typeof setInterval> | null>(null);
+  const postContentAiStartedRef     = useRef(false);
 
   const stopPolling = useCallback(() => {
     if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
   }, []);
+  const stopSummaryPolling = useCallback(() => {
+    if (summaryPollRef.current) { clearInterval(summaryPollRef.current); summaryPollRef.current = null; }
+  }, []);
 
-  useEffect(() => () => stopPolling(), [stopPolling]);
+  useEffect(() => () => {
+    stopPolling();
+    stopSummaryPolling();
+  }, [stopPolling, stopSummaryPolling]);
+
+  const startSummaryPolling = useCallback((jobId: number) => {
+    stopSummaryPolling();
+    summaryPollRef.current = setInterval(async () => {
+      try {
+        const updated = await getSummaryJob(isMockMode, jobId);
+        setSummaryJob(updated);
+        if (updated.status === 'COMPLETED' || updated.status === 'FAILED') {
+          stopSummaryPolling();
+        }
+      } catch (err) {
+        setSummaryError(getAdminErrorMessage(err, '요약 Job 상태 조회에 실패했습니다.'));
+        stopSummaryPolling();
+      }
+    }, 3000);
+  }, [isMockMode, stopSummaryPolling]);
+
+  const runPostContentAi = useCallback(async (targetBookId: number) => {
+    if (postContentAiStartedRef.current) return;
+    postContentAiStartedRef.current = true;
+
+    setCoverLoading(true);
+    setCoverError(null);
+    try {
+      const cover = await generateBookCover(isMockMode, targetBookId);
+      setCoverUrl(cover.coverImageUrl);
+    } catch (err) {
+      setCoverError(getAdminErrorMessage(err, 'AI 표지 생성에 실패했습니다.'));
+    } finally {
+      setCoverLoading(false);
+    }
+
+    setSummaryLoading(true);
+    setSummaryError(null);
+    try {
+      const created = await createSummary(isMockMode, targetBookId, 'full');
+      setSummaryJob(created);
+      startSummaryPolling(created.jobId);
+    } catch (err) {
+      setSummaryError(getAdminErrorMessage(err, 'AI 요약 생성 요청에 실패했습니다.'));
+    } finally {
+      setSummaryLoading(false);
+    }
+  }, [isMockMode, startSummaryPolling]);
 
   const startPolling = useCallback((jobId: number) => {
     stopPolling();
@@ -190,10 +276,13 @@ const BookRegisterPanel: React.FC<{ isMockMode: boolean }> = ({ isMockMode }) =>
         if (updated.status === 'COMPLETED' || updated.status === 'FAILED') {
           stopPolling();
           setStep('done');
+          if (updated.status === 'COMPLETED' && updated.bookId) {
+            void runPostContentAi(updated.bookId);
+          }
         }
       } catch { stopPolling(); }
     }, 3000);
-  }, [isMockMode, stopPolling]);
+  }, [isMockMode, runPostContentAi, stopPolling]);
 
   const handleMetaSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -252,6 +341,11 @@ const BookRegisterPanel: React.FC<{ isMockMode: boolean }> = ({ isMockMode }) =>
       });
       setBookId(result.book.bookId);
       setJob(result.contentJob);
+      setSummaryJob(null);
+      setSummaryError(null);
+      setCoverUrl(null);
+      setCoverError(null);
+      postContentAiStartedRef.current = false;
       setStep('polling');
       startPolling(result.contentJob.jobId);
     } catch (err) {
@@ -292,6 +386,11 @@ const BookRegisterPanel: React.FC<{ isMockMode: boolean }> = ({ isMockMode }) =>
       const contentJob = await uploadContent(isMockMode, bookId, file, setUploadProgress);
       setUploadProgress(100);
       setJob(contentJob);
+      setSummaryJob(null);
+      setSummaryError(null);
+      setCoverUrl(null);
+      setCoverError(null);
+      postContentAiStartedRef.current = false;
       setStep('polling');
       startPolling(contentJob.jobId);
     } catch (err) {
@@ -301,9 +400,29 @@ const BookRegisterPanel: React.FC<{ isMockMode: boolean }> = ({ isMockMode }) =>
 
   const handleReset = () => {
     stopPolling();
+    stopSummaryPolling();
     setStep('meta'); setForm(EMPTY_FORM); setFile(null);
     setBookId(null); setJob(null); setFieldErrors({}); setMetaError(null); setUploadError(null); setUploadProgress(0);
     setGutendexError(null); setGutendexImportingId(null);
+    setSummaryJob(null); setSummaryError(null); setSummaryLoading(false);
+    setCoverUrl(null); setCoverError(null); setCoverLoading(false);
+    postContentAiStartedRef.current = false;
+  };
+
+  const handleCreateSummary = async () => {
+    const targetBookId = job?.bookId || bookId;
+    if (!targetBookId) return;
+    setSummaryLoading(true);
+    setSummaryError(null);
+    try {
+      const created = await createSummary(isMockMode, targetBookId, 'full');
+      setSummaryJob(created);
+      startSummaryPolling(created.jobId);
+    } catch (err) {
+      setSummaryError(getAdminErrorMessage(err, 'AI 요약 생성 요청에 실패했습니다.'));
+    } finally {
+      setSummaryLoading(false);
+    }
   };
 
   const inputClass = 'w-full rounded-xl glass-soft border border-black/5 dark:border-white/10 px-3.5 py-2.5 text-sm text-slate-800 dark:text-white placeholder:text-slate-400 dark:placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-purple-500/40 transition bg-transparent';
@@ -357,9 +476,9 @@ const BookRegisterPanel: React.FC<{ isMockMode: boolean }> = ({ isMockMode }) =>
                 <div className="flex items-center justify-between gap-4 mb-3">
                   <div>
                     <h3 className="text-sm font-semibold text-slate-800 dark:text-white">Gutendex에서 가져오기</h3>
-                    <p className="text-[11px] text-slate-500 dark:text-white/40 mt-0.5">Project Gutenberg 공개 도서를 검색하고 원문 처리 Job을 바로 시작합니다.</p>
+                    <p className="text-[11px] text-slate-500 dark:text-white/40 mt-0.5">Project Gutenberg 공개 도서를 검색하고 원문 크롤링 Job을 수동으로 시작합니다.</p>
                   </div>
-                  <span className="text-[10px] px-2 py-1 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-300 font-mono">No AI Key</span>
+                  <span className="text-[10px] px-2 py-1 rounded-full bg-violet-500/10 text-violet-600 dark:text-violet-300 font-mono">Gemini Ready</span>
                 </div>
                 <form onSubmit={handleGutendexSearch} className="flex gap-2">
                   <div className="relative flex-1">
@@ -575,9 +694,16 @@ const BookRegisterPanel: React.FC<{ isMockMode: boolean }> = ({ isMockMode }) =>
               {step === 'done' && (
                 <div className="flex justify-between items-center pt-1">
                   {job.status === 'COMPLETED'
-                    ? <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 text-sm font-medium"><CheckCircle className="w-4 h-4" />파싱 완료! 도서가 서비스에 반영됩니다.</div>
+                    ? <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 text-sm font-medium"><CheckCircle className="w-4 h-4" />크롤링·파싱 완료! AI 표지와 요약을 자동 생성 중입니다.</div>
                     : <div className="flex items-center gap-2 text-red-500 text-sm"><XCircle className="w-4 h-4" />처리 실패 {job.retryable && '— 재시도 가능'}</div>}
                   <div className="flex items-center gap-2">
+                    {job.status === 'COMPLETED' && (
+                      <button onClick={handleCreateSummary} disabled={coverLoading || summaryLoading || summaryJob?.status === 'QUEUED' || summaryJob?.status === 'PROCESSING'}
+                        className="inline-flex items-center gap-1.5 text-xs px-4 py-2 rounded-xl bg-violet-600 hover:bg-violet-700 text-white disabled:opacity-50 transition">
+                        {coverLoading || summaryLoading || summaryJob?.status === 'PROCESSING' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                        {summaryJob?.status === 'FAILED' ? '요약 재시도' : 'AI 요약 생성'}
+                      </button>
+                    )}
                     {job.status === 'COMPLETED' && (
                       <button onClick={() => navigate(`/books/${job.bookId || bookId}`)}
                         className="text-xs px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white transition">
@@ -589,6 +715,69 @@ const BookRegisterPanel: React.FC<{ isMockMode: boolean }> = ({ isMockMode }) =>
                       새 도서 등록
                     </button>
                   </div>
+                </div>
+              )}
+              {summaryError && (
+                <div className="flex items-center gap-2 text-red-500 text-xs bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3">
+                  <AlertCircle className="w-4 h-4 shrink-0" />{summaryError}
+                </div>
+              )}
+              {job.status === 'COMPLETED' && (
+                <div className="glass-soft rounded-2xl p-4 space-y-3 border border-blue-500/10">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-slate-500 dark:text-white/40 uppercase tracking-wider">Gemini AI 표지</span>
+                    <span className={`text-[10px] px-2 py-1 rounded-full font-bold ${
+                      coverError ? 'bg-red-500/10 text-red-500'
+                      : coverLoading ? 'bg-blue-500/10 text-blue-500'
+                      : coverUrl ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                      : 'bg-slate-500/10 text-slate-500'
+                    }`}>
+                      {coverError ? 'FAILED' : coverLoading ? 'PROCESSING' : coverUrl ? 'COMPLETED' : 'WAITING'}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    {coverUrl ? (
+                      <img src={resolveApiAssetUrl(coverUrl) ?? coverUrl} alt="AI 생성 표지" className="w-14 h-20 rounded-lg object-cover bg-black/10" />
+                    ) : (
+                      <div className="w-14 h-20 rounded-lg bg-black/5 dark:bg-white/5 grid place-items-center">
+                        {coverLoading ? <Loader2 className="w-4 h-4 animate-spin text-blue-500" /> : <BookOpen className="w-4 h-4 text-slate-400" />}
+                      </div>
+                    )}
+                    <div className="min-w-0">
+                      <p className="text-xs text-slate-600 dark:text-white/60">
+                        {coverUrl ? 'AI 표지가 도서 표지로 반영되었습니다.' : coverLoading ? 'AI 표지를 생성하고 있습니다.' : '표지 생성 대기 중입니다.'}
+                      </p>
+                      {coverError && <p className="text-xs text-red-500 mt-1">{coverError}</p>}
+                    </div>
+                  </div>
+                </div>
+              )}
+              {summaryJob && (
+                <div className="glass-soft rounded-2xl p-4 space-y-3 border border-violet-500/10">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-slate-500 dark:text-white/40 uppercase tracking-wider">Gemini AI 요약 Job</span>
+                    <SummaryStatusBadge status={summaryJob.status} />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 text-xs">
+                    <div>
+                      <span className="text-slate-400 dark:text-white/30">Summary Job ID</span>
+                      <p className="font-mono font-bold text-slate-700 dark:text-white mt-0.5">{summaryJob.jobId}</p>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 dark:text-white/30">Summary ID</span>
+                      <p className="font-mono font-bold text-slate-700 dark:text-white mt-0.5">{summaryJob.summaryId ?? '-'}</p>
+                    </div>
+                  </div>
+                  {summaryJob.errorMessage && (
+                    <p className="text-xs text-red-500">{summaryJob.errorMessage}</p>
+                  )}
+                  {summaryJob.status === 'COMPLETED' && (
+                    <button onClick={() => navigate(`/books/${summaryJob.bookId}/summaries`)}
+                      className="inline-flex items-center gap-1.5 text-xs px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white transition">
+                      <Sparkles className="w-3.5 h-3.5" />
+                      요약 보기
+                    </button>
+                  )}
                 </div>
               )}
             </div>

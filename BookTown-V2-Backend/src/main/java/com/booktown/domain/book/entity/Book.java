@@ -88,6 +88,22 @@ public class Book {
         this.hasContent = true;
     }
 
+    public void updateCoverImageUrl(String coverImageUrl) {
+        this.coverImageUrl = coverImageUrl;
+    }
+
+    public void updateCatalogMetadata(String title, String author, String description) {
+        if (title != null && !title.isBlank()) {
+            this.title = title;
+        }
+        if (author != null && !author.isBlank()) {
+            this.author = author;
+        }
+        if (description != null && !description.isBlank()) {
+            this.description = description;
+        }
+    }
+
     @PrePersist
     void onCreate() {
         this.createdAt = LocalDateTime.now();
