@@ -365,7 +365,7 @@ jobs:
         if: |
           (github.ref == 'refs/heads/dev' && github.event_name == 'push') ||
           (github.event_name == 'workflow_dispatch' && github.event.inputs.deploy == 'true')
-        uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: dist
           path: BookTown-V2-Frontend/dist/
