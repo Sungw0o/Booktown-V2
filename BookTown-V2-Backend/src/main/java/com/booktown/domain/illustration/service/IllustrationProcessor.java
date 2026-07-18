@@ -18,6 +18,7 @@ public class IllustrationProcessor {
     private final IllustrationJobRepository illustrationJobRepository;
     private final IllustrationDocumentRepository illustrationDocumentRepository;
     private final ImageGenerationClient imageGenerationClient;
+    private final BookVisualPromptFactory bookVisualPromptFactory;
 
     @Async("illustrationProcessingExecutor")
     @Transactional
@@ -27,7 +28,9 @@ public class IllustrationProcessor {
         illustrationJobRepository.save(job);
 
         try {
-            String prompt = buildPrompt(job);
+            String prompt = bookVisualPromptFactory.createScenePrompt(
+                    job.getScene(), job.getStyle(), job.getPromptHint()
+            );
             String imageUrl = imageGenerationClient.generateImageDataUrl(prompt);
 
             IllustrationDocument doc = IllustrationDocument.create(
@@ -50,22 +53,6 @@ public class IllustrationProcessor {
             job.markFailed(e.getMessage(), retryable);
             illustrationJobRepository.save(job);
         }
-    }
-
-    private String buildPrompt(IllustrationJob job) {
-        String scene = job.getScene().getTitle();
-        String excerpt = job.getScene().getExcerpt();
-        String style = job.getStyle().name().toLowerCase();
-        String hint = job.getPromptHint() != null ? job.getPromptHint() : "";
-
-        return String.format(
-                "Create a %s style literary illustration for the scene '%s'. "
-                        + "Scene description: %s. %s"
-                        + "The illustration should evoke the mood and atmosphere of classic literature.",
-                style, scene,
-                        excerpt != null ? excerpt.substring(0, Math.min(200, excerpt.length())) : "",
-                hint.isBlank() ? "" : "Additional guidance: " + hint + ". "
-        );
     }
 
 }

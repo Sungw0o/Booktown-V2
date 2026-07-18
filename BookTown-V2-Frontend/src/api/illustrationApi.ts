@@ -2,7 +2,7 @@ import client from './client';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
-export type IllustrationStyle = 'WATERCOLOR' | 'INK' | 'CLASSIC' | 'CINEMATIC';
+export type IllustrationStyle = 'WEBTOON' | 'WATERCOLOR' | 'INK' | 'CLASSIC' | 'CINEMATIC';
 export type IllustrationJobStatus = 'QUEUED' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
 
 export interface Scene {
@@ -58,6 +58,11 @@ export const STYLE_META: Record<
   IllustrationStyle,
   { label: string; desc: string; color: string }
 > = {
+  WEBTOON: {
+    label: '웹툰',
+    desc: '표지와 같은 선화·채색을 유지하는 기본 스타일',
+    color: 'from-rose-400/20 to-fuchsia-600/20',
+  },
   WATERCOLOR: {
     label: '수채화',
     desc: '부드럽고 몽환적인 수채화 스타일',
@@ -131,7 +136,7 @@ const MOCK_ILLUSTRATIONS: Map<number, Illustration[]> = new Map([
       {
         illustrationId: 'mock-illust-1',
         sceneId: 1,
-        style: 'WATERCOLOR',
+        style: 'WEBTOON',
         imageUrl:
           'https://images.unsplash.com/photo-1518895949257-7621c3c786d7?w=800&auto=format',
         isRegeneration: false,
@@ -293,7 +298,7 @@ export const regenerateIllustration = async (
     const existing = Array.from(MOCK_ILLUSTRATIONS.values())
       .flat()
       .find((i) => i.illustrationId === illustrationId);
-    const style: IllustrationStyle = existing?.style ?? 'WATERCOLOR';
+    const style: IllustrationStyle = existing?.style ?? 'WEBTOON';
     const job: IllustrationJob = {
       jobId,
       sceneId,

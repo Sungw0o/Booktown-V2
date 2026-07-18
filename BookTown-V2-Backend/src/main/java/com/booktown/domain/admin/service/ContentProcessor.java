@@ -31,7 +31,6 @@ import java.util.regex.Pattern;
 @RequiredArgsConstructor
 public class ContentProcessor {
 
-    private static final int MAX_CHUNK_SIZE = 5000;
     private static final int SCENE_EXCERPT_LENGTH = 300;
     private static final Pattern CHAPTER_PATTERN = Pattern.compile(
             "(?m)^(제\\s*\\d+\\s*장[^\n]*|Chapter\\s+\\d+[^\n]*|CHAPTER\\s+[IVX\\d]+[^\n]*|Letter\\s+\\d+[^\n]*|LETTER\\s+[IVX\\d]+[^\n]*|\\d+\\.\\s+[^\n]+)$"
@@ -45,6 +44,7 @@ public class ContentProcessor {
     private final SceneRepository sceneRepository;
     private final GutendexClient gutendexClient;
     private final ObjectProvider<ChatClient> chatClientProvider;
+    private final ContentChapterSegmenter contentChapterSegmenter;
 
     @Async("contentProcessingExecutor")
     @Transactional
@@ -80,7 +80,7 @@ public class ContentProcessor {
         try {
             String rawText = new String(rawContent, StandardCharsets.UTF_8);
             String text = stripProjectGutenbergBoilerplate(rawText);
-            List<ChapterSegment> segments = parseChapters(text);
+            List<ContentChapterSegmenter.ChapterSegment> segments = contentChapterSegmenter.segment(text);
 
             Book book = job.getBook();
             CatalogMetadata catalogMetadata = translateCatalogMetadata(new CatalogMetadata(
@@ -123,20 +123,6 @@ public class ContentProcessor {
         return trimmed.length() <= SCENE_EXCERPT_LENGTH
                 ? trimmed
                 : trimmed.substring(0, SCENE_EXCERPT_LENGTH) + "...";
-    }
-
-    private List<ChapterSegment> parseChapters(String text) {
-        Matcher matcher = CHAPTER_PATTERN.matcher(text);
-        List<int[]> headerPositions = new ArrayList<>();
-
-        while (matcher.find()) {
-            headerPositions.add(new int[]{matcher.start(), matcher.end()});
-        }
-
-        if (!headerPositions.isEmpty()) {
-            return splitByHeaders(text, headerPositions);
-        }
-        return splitBySize(text);
     }
 
     private String stripProjectGutenbergBoilerplate(String text) {
@@ -213,30 +199,6 @@ public class ContentProcessor {
             }
         }
         return end;
-    }
-
-    private List<ChapterSegment> splitByHeaders(String text, List<int[]> headers) {
-        List<ChapterSegment> segments = new ArrayList<>();
-        for (int i = 0; i < headers.size(); i++) {
-            int titleStart = headers.get(i)[0];
-            int titleEnd = headers.get(i)[1];
-            int contentEnd = (i + 1 < headers.size()) ? headers.get(i + 1)[0] : text.length();
-            String title = text.substring(titleStart, titleEnd).trim();
-            String content = text.substring(titleEnd, contentEnd).trim();
-            segments.add(new ChapterSegment(title, content));
-        }
-        return segments;
-    }
-
-    private List<ChapterSegment> splitBySize(String text) {
-        List<ChapterSegment> segments = new ArrayList<>();
-        int total = text.length();
-        int chapterNum = 1;
-        for (int start = 0; start < total; start += MAX_CHUNK_SIZE) {
-            int end = Math.min(start + MAX_CHUNK_SIZE, total);
-            segments.add(new ChapterSegment("Chapter " + chapterNum++, text.substring(start, end).trim()));
-        }
-        return segments.isEmpty() ? List.of(new ChapterSegment("Chapter 1", text.trim())) : segments;
     }
 
     private boolean isContentStartLine(String line) {
@@ -394,8 +356,6 @@ public class ContentProcessor {
         }
         return result.toString();
     }
-
-    private record ChapterSegment(String title, String content) {}
 
     private record CatalogMetadata(String title, String author, String description) {}
 }

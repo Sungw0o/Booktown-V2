@@ -6,6 +6,7 @@ import com.booktown.domain.book.entity.Book;
 import com.booktown.domain.book.repository.BookCoverImageRepository;
 import com.booktown.domain.book.repository.BookRepository;
 import com.booktown.domain.illustration.service.ImageGenerationClient;
+import com.booktown.domain.illustration.service.BookVisualPromptFactory;
 import com.booktown.global.exception.CustomException;
 import com.booktown.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
@@ -20,11 +21,14 @@ public class BookCoverService {
     private final BookRepository bookRepository;
     private final BookCoverImageRepository bookCoverImageRepository;
     private final ImageGenerationClient imageGenerationClient;
+    private final BookVisualPromptFactory bookVisualPromptFactory;
 
     @Transactional
     public GeneratedCoverResponse generateCover(Long bookId) {
         Book book = findBook(bookId);
-        ImageGenerationClient.GeneratedImage image = imageGenerationClient.generateImage(buildCoverPrompt(book));
+        ImageGenerationClient.GeneratedImage image = imageGenerationClient.generateImage(
+                bookVisualPromptFactory.createCoverPrompt(book)
+        );
 
         bookCoverImageRepository.deleteAllByBookId(bookId);
         bookCoverImageRepository.save(BookCoverImageDocument.create(bookId, image.mimeType(), image.bytes()));
@@ -46,23 +50,6 @@ public class BookCoverService {
     private Book findBook(Long bookId) {
         return bookRepository.findById(bookId)
                 .orElseThrow(() -> new CustomException(ErrorCode.BOOK_NOT_FOUND));
-    }
-
-    private String buildCoverPrompt(Book book) {
-        String description = book.getDescription() == null ? "" : book.getDescription();
-        String trimmedDescription = description.length() > 900
-                ? description.substring(0, 900)
-                : description;
-        return """
-                Create an original vertical book cover illustration for a classic literature reading app.
-                Do not copy any existing cover art. Do not include readable text, logos, author portraits, or publisher marks.
-                Mood: cinematic, literary, elegant, emotionally rich, suitable for a public domain classic.
-                Composition: centered cover art, strong silhouette, refined colors, high contrast, no typography.
-                Title: %s
-                Author: %s
-                Genre: %s
-                Description: %s
-                """.formatted(book.getTitle(), book.getAuthor(), book.getGenre().name(), trimmedDescription);
     }
 
     public record CoverImage(String mimeType, byte[] data) {
