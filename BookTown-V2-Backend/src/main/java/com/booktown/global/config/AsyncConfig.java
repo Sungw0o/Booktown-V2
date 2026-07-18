@@ -6,6 +6,10 @@ import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
 import java.util.concurrent.Executor;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.RejectedExecutionHandler;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 @Configuration
 @EnableAsync
@@ -48,10 +52,33 @@ public class AsyncConfig {
     public Executor illustrationProcessingExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
         executor.setCorePoolSize(2);
-        executor.setMaxPoolSize(4);
-        executor.setQueueCapacity(15);
+        executor.setMaxPoolSize(2);
+        executor.setQueueCapacity(20);
         executor.setThreadNamePrefix("illus-proc-");
+        executor.setWaitForTasksToCompleteOnShutdown(true);
+        executor.setAwaitTerminationSeconds(30);
+        executor.setRejectedExecutionHandler(new BlockingBackpressurePolicy());
         executor.initialize();
         return executor;
+    }
+
+    private static final class BlockingBackpressurePolicy implements RejectedExecutionHandler {
+
+        private static final long OFFER_TIMEOUT_MILLIS = 250;
+
+        @Override
+        public void rejectedExecution(Runnable task, ThreadPoolExecutor executor) {
+            try {
+                while (!executor.isShutdown()) {
+                    if (executor.getQueue().offer(task, OFFER_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS)) {
+                        return;
+                    }
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new RejectedExecutionException("Interrupted while waiting for illustration queue capacity.", e);
+            }
+            throw new RejectedExecutionException("Illustration executor is shutting down.");
+        }
     }
 }
