@@ -22,19 +22,26 @@ spring:
     uri: ${MONGODB_URI:mongodb://booktown:booktown@localhost:27017/booktown?authSource=admin}
   ai:
     model:
-      chat: google-genai
+      chat: openai
+      embedding: openai
+      image: openai
+    openai:
+      api-key: ${OPENAI_API_KEY:}
+      chat:
+        model: ${OPENAI_CHAT_MODEL:gpt-4o-mini}
+        temperature: ${OPENAI_CHAT_TEMPERATURE:0.4}
       embedding:
-        text: google-genai
-    google:
-      genai:
-        api-key: ${GEMINI_API_KEY:}
-        chat:
-          model: ${GEMINI_CHAT_MODEL:gemini-2.5-flash}
-          temperature: ${GEMINI_CHAT_TEMPERATURE:0.4}
-        embedding:
-          api-key: ${GEMINI_API_KEY:}
-          text:
-            model: ${GEMINI_EMBEDDING_MODEL:text-embedding-004}
+        model: ${OPENAI_EMBEDDING_MODEL:text-embedding-3-small}
+      image:
+        model: ${OPENAI_IMAGE_MODEL:gpt-image-1-mini}
+        quality: ${OPENAI_IMAGE_QUALITY:low}
+        size: ${OPENAI_IMAGE_SIZE:1024x1536}
+    retry:
+      max-attempts: ${OPENAI_MAX_RETRY_ATTEMPTS:3}
+      backoff:
+        initial-interval: ${OPENAI_RETRY_INITIAL_INTERVAL:1s}
+        multiplier: ${OPENAI_RETRY_MULTIPLIER:2}
+        max-interval: ${OPENAI_RETRY_MAX_INTERVAL:10s}
     vectorstore:
       chroma:
         initialize-schema: true
@@ -98,9 +105,5 @@ booktown:
         token-uri: https://nid.naver.com/oauth2.0/token
         user-info-uri: https://openapi.naver.com/v1/nid/me
   ai:
-    gemini:
-      image:
-        model: ${GEMINI_IMAGE_MODEL:gemini-3.1-flash-image}
-        mime-type: ${GEMINI_IMAGE_MIME_TYPE:image/png}
-        aspect-ratio: ${GEMINI_IMAGE_ASPECT_RATIO:3:4}
-        image-size: ${GEMINI_IMAGE_SIZE:1K}
+    image:
+      mime-type: ${OPENAI_IMAGE_MIME_TYPE:image/png}

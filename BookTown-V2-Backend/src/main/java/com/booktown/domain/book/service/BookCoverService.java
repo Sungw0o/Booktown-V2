@@ -5,7 +5,7 @@ import com.booktown.domain.book.document.BookCoverImageDocument;
 import com.booktown.domain.book.entity.Book;
 import com.booktown.domain.book.repository.BookCoverImageRepository;
 import com.booktown.domain.book.repository.BookRepository;
-import com.booktown.domain.illustration.service.GeminiImageClient;
+import com.booktown.domain.illustration.service.ImageGenerationClient;
 import com.booktown.global.exception.CustomException;
 import com.booktown.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
@@ -19,12 +19,12 @@ public class BookCoverService {
 
     private final BookRepository bookRepository;
     private final BookCoverImageRepository bookCoverImageRepository;
-    private final GeminiImageClient geminiImageClient;
+    private final ImageGenerationClient imageGenerationClient;
 
     @Transactional
     public GeneratedCoverResponse generateCover(Long bookId) {
         Book book = findBook(bookId);
-        GeminiImageClient.GeneratedImage image = geminiImageClient.generateImage(buildCoverPrompt(book));
+        ImageGenerationClient.GeneratedImage image = imageGenerationClient.generateImage(buildCoverPrompt(book));
 
         bookCoverImageRepository.deleteAllByBookId(bookId);
         bookCoverImageRepository.save(BookCoverImageDocument.create(bookId, image.mimeType(), image.bytes()));

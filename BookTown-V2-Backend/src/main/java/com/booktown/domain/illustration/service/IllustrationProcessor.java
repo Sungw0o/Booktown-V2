@@ -17,7 +17,7 @@ public class IllustrationProcessor {
 
     private final IllustrationJobRepository illustrationJobRepository;
     private final IllustrationDocumentRepository illustrationDocumentRepository;
-    private final GeminiImageClient geminiImageClient;
+    private final ImageGenerationClient imageGenerationClient;
 
     @Async("illustrationProcessingExecutor")
     @Transactional
@@ -28,7 +28,7 @@ public class IllustrationProcessor {
 
         try {
             String prompt = buildPrompt(job);
-            String imageUrl = geminiImageClient.generateImageDataUrl(prompt);
+            String imageUrl = imageGenerationClient.generateImageDataUrl(prompt);
 
             IllustrationDocument doc = IllustrationDocument.create(
                     job.getScene().getId(),
