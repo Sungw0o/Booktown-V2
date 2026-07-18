@@ -28,14 +28,20 @@ class BookVisualPromptFactoryTest {
         Scene scene = Scene.create(book, chapter, "첫 무도회", "엘리자베스와 다아시가 붐비는 무도회장에서 마주친다.", 1);
 
         String coverPrompt = promptFactory.createCoverPrompt(book);
-        String scenePrompt = promptFactory.createScenePrompt(scene, IllustrationStyle.WEBTOON, "warm candlelight");
+        String scenePrompt = promptFactory.createScenePrompt(scene, IllustrationStyle.WATERCOLOR, "warm candlelight");
 
         assertThat(coverPrompt).contains(BookVisualPromptFactory.STYLE_BIBLE.trim());
         assertThat(scenePrompt).contains(BookVisualPromptFactory.STYLE_BIBLE.trim());
         assertThat(coverPrompt).contains("Series identity: 오만과 편견 by 제인 오스틴");
         assertThat(scenePrompt).contains("Series identity: 오만과 편견 by 제인 오스틴");
-        assertThat(coverPrompt).contains("vertical cover illustration", "Do not include readable text");
-        assertThat(scenePrompt).contains("vertical full-bleed story panel", "Requested accent: webtoon");
+        assertThat(coverPrompt).contains(
+                "Korean webtoon cover key art",
+                "1024x1536 portrait canvas",
+                "make the image read clearly at small book-card thumbnail size",
+                "no readable text",
+                "not generic fantasy concept art"
+        );
+        assertThat(scenePrompt).contains("vertical full-bleed story panel", "Requested accent: watercolor");
     }
 
     @Test

@@ -335,7 +335,7 @@ export const IllustrationGallery: React.FC = () => {
 
   // Style selection
   const [selectedStyle, setSelectedStyle] =
-    useState<IllustrationStyle>('WEBTOON');
+    useState<IllustrationStyle>('WATERCOLOR');
 
   // Generating flag (prevent double-click)
   const [generatingSceneId, setGeneratingSceneId] = useState<number | null>(

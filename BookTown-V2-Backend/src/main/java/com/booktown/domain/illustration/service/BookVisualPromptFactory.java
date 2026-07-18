@@ -20,14 +20,33 @@ public class BookVisualPromptFactory {
 
     public String createCoverPrompt(Book book) {
         return """
-                Create an original vertical cover illustration for the same visual series identified below.
-                Do not include readable text, logos, author portraits, watermarks, frames, or publisher marks.
-                Composition: one iconic story moment, centered focal character, strong silhouette, generous title-safe negative space.
+                INTENDED USE
+                Create original Korean webtoon cover key art for a classic-literature mobile and web reading app.
+                Design for a 1024x1536 portrait canvas with a 2:3 aspect ratio.
 
                 %s
+
+                SUBJECT AND STORY
                 Series identity: %s by %s.
                 Genre: %s.
                 Story context: %s
+
+                COMPOSITION
+                - depict one iconic, emotionally dramatic story moment rather than a decorative portrait
+                - use one primary character or one focal character pair with a strong, immediately readable silhouette
+                - use a cinematic eye-level or subtle low-angle perspective with clear foreground, middle ground, and background depth
+                - reserve calm negative space near the top for the app overlay, but do not render any text in that space
+                - make the image read clearly at small book-card thumbnail size
+
+                CHARACTER AND PERIOD DIRECTION
+                - infer period-authentic clothing, architecture, props, and atmosphere from the book metadata
+                - prioritize expressive eyes, controlled facial acting, elegant costume silhouettes, and dynamic fabric or hair movement
+                - keep the result unmistakably like polished Korean webtoon cover art, not generic fantasy concept art
+
+                OUTPUT CONSTRAINTS
+                - no readable text, title lettering, captions, speech bubbles, logos, author portraits, watermarks, borders, or publisher marks
+                - no photorealism, live-action photography, 3D render, western superhero comic style, manga screentones, chibi style, or collage
+                - do not imitate or reproduce an existing published cover or a living artist's signature style
                 """.formatted(
                 STYLE_BIBLE,
                 book.getTitle(),
