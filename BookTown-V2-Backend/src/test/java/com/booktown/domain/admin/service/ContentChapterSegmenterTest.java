@@ -19,7 +19,7 @@ class ContentChapterSegmenterTest {
                 .reduce((left, right) -> left + "\n\n" + right)
                 .orElseThrow();
 
-        List<ContentChapterSegmenter.ChapterSegment> result = segmenter.segment(source);
+        List<ContentChapterSegmenter.ChapterSegment> result = segmenter.createSegments(source);
 
         assertThat(result).hasSize(10);
         assertThat(result).extracting(ContentChapterSegmenter.ChapterSegment::title)
@@ -43,18 +43,34 @@ class ContentChapterSegmenterTest {
                 .reduce((left, right) -> left + " " + right)
                 .orElseThrow();
 
-        List<ContentChapterSegmenter.ChapterSegment> result = segmenter.segment(source);
+        List<ContentChapterSegmenter.ChapterSegment> result = segmenter.createSegments(source);
 
         assertThat(result).hasSize(10);
         assertThat(result).allSatisfy(chapter -> assertThat(chapter.content()).isNotBlank());
         assertThat(result.stream().mapToInt(chapter -> chapter.content().length()).max().orElseThrow())
                 .isLessThan(result.stream().mapToInt(chapter -> chapter.content().length()).min().orElseThrow() * 2);
+        assertThat(result).allSatisfy(chapter -> {
+            assertThat(chapter.content()).endsWith(".");
+            assertThat(chapter.content().charAt(0)).isNotIn('.', '!', '?', ',');
+        });
+        assertThat(normalize(result.stream()
+                .map(ContentChapterSegmenter.ChapterSegment::content)
+                .reduce((left, right) -> left + " " + right)
+                .orElseThrow()))
+                .isEqualTo(normalize(source));
     }
 
     @Test
     void rejectsContentTooShortForTenNonEmptyChapters() {
         assertThatIllegalArgumentException()
-                .isThrownBy(() -> segmenter.segment("short"))
+                .isThrownBy(() -> segmenter.createSegments("short"))
                 .withMessageContaining("too short");
+        assertThatIllegalArgumentException()
+                .isThrownBy(() -> segmenter.createSegments("abcdefghij"))
+                .withMessageContaining("too short");
+    }
+
+    private String normalize(String value) {
+        return value.replaceAll("\\s+", " ").trim();
     }
 }

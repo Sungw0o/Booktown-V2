@@ -9,6 +9,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.RejectedExecutionHandler;
 import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 @Configuration
 @EnableAsync
@@ -63,17 +64,21 @@ public class AsyncConfig {
 
     private static final class BlockingBackpressurePolicy implements RejectedExecutionHandler {
 
+        private static final long OFFER_TIMEOUT_MILLIS = 250;
+
         @Override
         public void rejectedExecution(Runnable task, ThreadPoolExecutor executor) {
-            if (executor.isShutdown()) {
-                throw new RejectedExecutionException("Illustration executor is shutting down.");
-            }
             try {
-                executor.getQueue().put(task);
+                while (!executor.isShutdown()) {
+                    if (executor.getQueue().offer(task, OFFER_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS)) {
+                        return;
+                    }
+                }
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 throw new RejectedExecutionException("Interrupted while waiting for illustration queue capacity.", e);
             }
+            throw new RejectedExecutionException("Illustration executor is shutting down.");
         }
     }
 }

@@ -13,14 +13,16 @@ import java.util.regex.Pattern;
 public class ContentChapterSegmenter {
 
     static final int TARGET_CHAPTER_COUNT = 10;
+    static final int MIN_SOURCE_TEXT_LENGTH = 1_000;
+    private static final int MIN_SPLIT_BOUNDARY_COUNT = TARGET_CHAPTER_COUNT - 1;
     private static final Pattern SOURCE_HEADING_PATTERN = Pattern.compile(
             "(?i)^(chapter|letter|book|part)\\s+[ivxlcdm\\d]+(?:[.:\\s-].*)?$"
     );
 
-    public List<ChapterSegment> segment(String text) {
+    public List<ChapterSegment> createSegments(String text) {
         String normalized = normalize(text);
-        if (normalized.isBlank()) {
-            throw new IllegalArgumentException("Content must not be blank.");
+        if (normalized.length() < MIN_SOURCE_TEXT_LENGTH || countSplitBoundaries(normalized) < MIN_SPLIT_BOUNDARY_COUNT) {
+            throw new IllegalArgumentException("Content is too short to split into 10 meaningful chapters.");
         }
 
         int preferredUnitSize = Math.max(1, normalized.length() / TARGET_CHAPTER_COUNT);
@@ -33,6 +35,12 @@ public class ContentChapterSegmenter {
             chapters.add(new ChapterSegment((i + 1) + "부", String.join("\n\n", groups.get(i)).trim()));
         }
         return List.copyOf(chapters);
+    }
+
+    private long countSplitBoundaries(String text) {
+        return text.chars()
+                .filter(value -> Character.isWhitespace(value) || isPunctuation((char) value))
+                .count();
     }
 
     private String normalize(String text) {
@@ -138,18 +146,26 @@ public class ContentChapterSegmenter {
         for (int distance = 0; distance < text.length(); distance++) {
             int right = middle + distance;
             if (right > 0 && right < text.length() && isBoundary(text.charAt(right))) {
-                return right;
+                return splitPosition(text.charAt(right), right);
             }
             int left = middle - distance;
             if (left > 0 && left < text.length() && isBoundary(text.charAt(left))) {
-                return left;
+                return splitPosition(text.charAt(left), left);
             }
         }
         return middle;
     }
 
     private boolean isBoundary(char value) {
-        return Character.isWhitespace(value) || value == '.' || value == '!' || value == '?' || value == ',';
+        return Character.isWhitespace(value) || isPunctuation(value);
+    }
+
+    private boolean isPunctuation(char value) {
+        return value == '.' || value == '!' || value == '?' || value == ',';
+    }
+
+    private int splitPosition(char boundary, int index) {
+        return isPunctuation(boundary) ? index + 1 : index;
     }
 
     private List<List<String>> partition(List<String> units) {

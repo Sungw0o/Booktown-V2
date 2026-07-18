@@ -80,7 +80,7 @@ public class ContentProcessor {
         try {
             String rawText = new String(rawContent, StandardCharsets.UTF_8);
             String text = stripProjectGutenbergBoilerplate(rawText);
-            List<ContentChapterSegmenter.ChapterSegment> segments = contentChapterSegmenter.segment(text);
+            List<ContentChapterSegmenter.ChapterSegment> segments = contentChapterSegmenter.createSegments(text);
 
             Book book = job.getBook();
             CatalogMetadata catalogMetadata = translateCatalogMetadata(new CatalogMetadata(
