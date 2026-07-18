@@ -147,7 +147,7 @@ jobs:
           env.SONAR_PROJECT_KEY != '' &&
           env.SONAR_ORGANIZATION != '' &&
           (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
-        uses: SonarSource/sonarqube-scan-action@2f77a1ec69fb1d595b06f35ab27e97605bdef703
+        uses: SonarSource/sonarqube-scan-action@713881670b6b3676cda39549040e2d88c70d582e
         with:
           projectBaseDir: BookTown-V2-Backend
           args: >
