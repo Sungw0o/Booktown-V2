@@ -63,7 +63,7 @@ public interface AdminBookApi {
     );
 
     @PostMapping("/books/{bookId}/cover")
-    @Operation(summary = "AI 표지 생성", description = "Gemini 이미지 모델로 도서 표지를 생성하고 도서 coverImageUrl을 갱신합니다.")
+    @Operation(summary = "AI 표지 생성", description = "AI 이미지 모델로 도서 표지를 생성하고 도서 coverImageUrl을 갱신합니다.")
     ApiResponse<GeneratedCoverResponse> generateCover(
             @PathVariable Long bookId
     );
