@@ -42,6 +42,12 @@ flowchart LR
     LOKI["Loki / Alloy"] --> GRAFANA
 ```
 
+### 배포 아키텍처
+
+![BookTown V2 배포 아키텍처](docs/booktown-deployment-architecture.svg)
+
+Route 53은 서비스 도메인을 정적 웹과 API 엔드포인트에 연결합니다. React 정적 자산은 CloudFront와 S3에서 제공하고, API는 EC2의 Nginx를 거쳐 Spring Boot 컨테이너로 전달합니다. 애플리케이션은 데이터 성격에 따라 MySQL, Redis, MongoDB, ChromaDB를 사용하며 Gemini와 Gutendex를 외부 연동으로 분리합니다.
+
 ### AI 도서 처리 파이프라인
 
 ```mermaid
