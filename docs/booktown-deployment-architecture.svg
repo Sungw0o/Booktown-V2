@@ -1,0 +1,101 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="900" viewBox="0 0 1440 900" role="img" aria-labelledby="title desc">
+  <title id="title">BookTown V2 deployment architecture</title>
+  <desc id="desc">AWS edge, application, data, AI, observability, and delivery architecture for BookTown V2.</desc>
+  <defs>
+    <pattern id="grid" width="34" height="34" patternUnits="userSpaceOnUse" patternTransform="skewY(-26)">
+      <path d="M34 0H0V34" fill="none" stroke="#233453" stroke-width="1" opacity=".28"/>
+    </pattern>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#07101f"/><stop offset=".55" stop-color="#0b1730"/><stop offset="1" stop-color="#081121"/></linearGradient>
+    <linearGradient id="panel" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#152747" stop-opacity=".95"/><stop offset="1" stop-color="#0e1b34" stop-opacity=".92"/></linearGradient>
+    <linearGradient id="aws" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#ffb22e"/><stop offset="1" stop-color="#ff8b19"/></linearGradient>
+    <linearGradient id="blue" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#67c6ff"/><stop offset="1" stop-color="#3477e7"/></linearGradient>
+    <linearGradient id="violet" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#bd8cff"/><stop offset="1" stop-color="#7856df"/></linearGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="180%"><feDropShadow dx="0" dy="14" stdDeviation="12" flood-color="#020713" flood-opacity=".55"/></filter>
+    <filter id="glow" x="-100%" y="-100%" width="300%" height="300%"><feGaussianBlur stdDeviation="5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0l10 5-10 5z" fill="#6d89b7"/></marker>
+    <style>
+      .eyebrow{font:600 13px Inter,Arial,sans-serif;letter-spacing:2.4px;fill:#ffad2e}.heading{font:700 34px Inter,Arial,sans-serif;fill:#f5f8ff}.sub{font:400 15px Inter,Arial,sans-serif;fill:#94a8cb}.zone{fill:url(#panel);stroke:#28436e;stroke-width:1.5}.zone-title{font:700 13px Inter,Arial,sans-serif;letter-spacing:1.8px;fill:#7f9bc8}.card{fill:#142641;stroke:#38547d;stroke-width:1.2}.card-title{font:700 15px Inter,Arial,sans-serif;fill:#f5f8ff}.card-sub{font:400 12px Inter,Arial,sans-serif;fill:#91a5c6}.icon-text{font:800 13px Inter,Arial,sans-serif;fill:white;text-anchor:middle}.flow{fill:none;stroke:#6d89b7;stroke-width:2;marker-end:url(#arrow)}.flow-accent{fill:none;stroke:#ff9f24;stroke-width:2.4;marker-end:url(#arrow)}.pill{font:600 11px Inter,Arial,sans-serif;fill:#b9c7df}.num{font:700 11px Inter,Arial,sans-serif;fill:#07101f;text-anchor:middle}
+    </style>
+  </defs>
+  <rect width="1440" height="900" fill="url(#bg)"/>
+  <rect width="1440" height="900" fill="url(#grid)"/>
+  <circle cx="1265" cy="90" r="210" fill="#143466" opacity=".22"/>
+  <circle cx="100" cy="790" r="260" fill="#2a174f" opacity=".15"/>
+
+  <text x="74" y="72" class="eyebrow">BOOKTOWN V2 · SYSTEM MAP</text>
+  <text x="74" y="116" class="heading">AI 기반 고전문학 독서 플랫폼</text>
+  <text x="74" y="145" class="sub">Edge delivery · Spring Boot services · polyglot persistence · RAG/AI pipeline · observability</text>
+  <g transform="translate(1165 62)"><rect width="200" height="54" rx="27" fill="#101f39" stroke="#304a72"/><circle cx="28" cy="27" r="8" fill="#49d39b" filter="url(#glow)"/><text x="49" y="24" class="card-title">Production</text><text x="49" y="41" class="card-sub">booktown.shop</text></g>
+
+  <!-- entry -->
+  <g filter="url(#shadow)">
+    <rect x="74" y="300" width="150" height="188" rx="22" class="zone"/>
+    <text x="96" y="330" class="zone-title">CLIENT</text>
+    <circle cx="149" cy="382" r="30" fill="url(#blue)"/>
+    <circle cx="149" cy="373" r="9" fill="none" stroke="white" stroke-width="3"/><path d="M130 402c4-13 34-13 38 0" fill="none" stroke="white" stroke-width="3" stroke-linecap="round"/>
+    <text x="149" y="438" class="card-title" text-anchor="middle">Reader · Admin</text>
+    <text x="149" y="458" class="card-sub" text-anchor="middle">HTTPS / Browser</text>
+  </g>
+
+  <!-- edge -->
+  <g filter="url(#shadow)">
+    <rect x="274" y="220" width="286" height="358" rx="24" class="zone"/>
+    <text x="298" y="252" class="zone-title">EDGE &amp; DELIVERY</text>
+    <g transform="translate(300 278)"><rect width="234" height="72" rx="14" class="card"/><rect x="16" y="16" width="40" height="40" rx="10" fill="url(#violet)"/><text x="36" y="41" class="icon-text">53</text><text x="70" y="31" class="card-title">Route 53</text><text x="70" y="51" class="card-sub">DNS routing</text></g>
+    <g transform="translate(300 368)"><rect width="234" height="72" rx="14" class="card"/><rect x="16" y="16" width="40" height="40" rx="10" fill="url(#violet)"/><text x="36" y="41" class="icon-text">CF</text><text x="70" y="31" class="card-title">CloudFront</text><text x="70" y="51" class="card-sub">SPA CDN · TLS · cache</text></g>
+    <g transform="translate(300 458)"><rect width="234" height="72" rx="14" class="card"/><rect x="16" y="16" width="40" height="40" rx="10" fill="url(#aws)"/><text x="36" y="41" class="icon-text">S3</text><text x="70" y="31" class="card-title">Amazon S3</text><text x="70" y="51" class="card-sub">React 19 static assets</text></g>
+  </g>
+
+  <!-- application -->
+  <g filter="url(#shadow)">
+    <rect x="610" y="185" width="350" height="430" rx="24" class="zone"/>
+    <text x="636" y="217" class="zone-title">APPLICATION · AWS EC2</text>
+    <rect x="636" y="242" width="298" height="82" rx="16" class="card"/>
+    <rect x="654" y="261" width="44" height="44" rx="11" fill="url(#aws)"/><text x="676" y="288" class="icon-text">NX</text>
+    <text x="714" y="277" class="card-title">Nginx reverse proxy</text><text x="714" y="298" class="card-sub">api.booktown.shop · SSL termination</text>
+    <rect x="636" y="344" width="298" height="126" rx="16" fill="#152b48" stroke="#4d729e" stroke-width="1.4"/>
+    <rect x="654" y="364" width="44" height="44" rx="11" fill="url(#blue)"/><text x="676" y="391" class="icon-text">SB</text>
+    <text x="714" y="380" class="card-title">Spring Boot 4 · Java 21</text><text x="714" y="402" class="card-sub">REST API · Security · Async Jobs</text>
+    <rect x="654" y="428" width="80" height="24" rx="12" fill="#203b5e"/><text x="694" y="444" class="pill" text-anchor="middle">Docker</text>
+    <rect x="742" y="428" width="80" height="24" rx="12" fill="#203b5e"/><text x="782" y="444" class="pill" text-anchor="middle">JWT</text>
+    <rect x="830" y="428" width="86" height="24" rx="12" fill="#203b5e"/><text x="873" y="444" class="pill" text-anchor="middle">WebClient</text>
+    <g transform="translate(636 490)"><rect width="142" height="82" rx="14" class="card"/><circle cx="29" cy="27" r="14" fill="#49d39b"/><text x="29" y="31" class="icon-text">A</text><text x="52" y="31" class="card-title">Actuator</text><text x="18" y="60" class="card-sub">health · metrics</text></g>
+    <g transform="translate(792 490)"><rect width="142" height="82" rx="14" class="card"/><circle cx="29" cy="27" r="14" fill="#ff9f24"/><text x="29" y="31" class="icon-text">J</text><text x="52" y="31" class="card-title">Job Engine</text><text x="18" y="60" class="card-sub">summary · quiz · scene</text></g>
+  </g>
+
+  <!-- data -->
+  <g filter="url(#shadow)">
+    <rect x="1010" y="185" width="354" height="280" rx="24" class="zone"/>
+    <text x="1036" y="217" class="zone-title">POLYGLOT DATA LAYER</text>
+    <g transform="translate(1036 242)"><rect width="142" height="86" rx="14" class="card"/><ellipse cx="30" cy="27" rx="17" ry="9" fill="#418af5"/><path d="M13 27v21c0 5 34 5 34 0V27" fill="#418af5" opacity=".8"/><text x="60" y="29" class="card-title">MySQL</text><text x="60" y="49" class="card-sub">core data</text></g>
+    <g transform="translate(1192 242)"><rect width="142" height="86" rx="14" class="card"/><path d="M13 23l17-9 17 9-17 9zM13 32l17 9 17-9M13 41l17 9 17-9" fill="none" stroke="#ef5a5a" stroke-width="4"/><text x="60" y="29" class="card-title">Redis</text><text x="60" y="49" class="card-sub">token · cache</text></g>
+    <g transform="translate(1036 344)"><rect width="142" height="86" rx="14" class="card"/><path d="M30 12c-15 11-13 28 0 42 13-14 15-31 0-42z" fill="#48b97d"/><path d="M30 22v31" stroke="white" stroke-width="2"/><text x="60" y="29" class="card-title">MongoDB</text><text x="60" y="49" class="card-sub">AI documents</text></g>
+    <g transform="translate(1192 344)"><rect width="142" height="86" rx="14" class="card"/><circle cx="30" cy="31" r="18" fill="none" stroke="#bd8cff" stroke-width="4"/><circle cx="30" cy="31" r="5" fill="#bd8cff"/><text x="60" y="29" class="card-title">ChromaDB</text><text x="60" y="49" class="card-sub">vector RAG</text></g>
+  </g>
+
+  <!-- integrations and observability -->
+  <g filter="url(#shadow)">
+    <rect x="1010" y="495" width="354" height="120" rx="24" class="zone"/>
+    <text x="1036" y="527" class="zone-title">EXTERNAL AI &amp; CONTENT</text>
+    <g transform="translate(1036 546)"><rect width="142" height="46" rx="13" class="card"/><circle cx="25" cy="23" r="12" fill="url(#blue)"/><text x="25" y="27" class="icon-text">G</text><text x="48" y="28" class="card-title">Gemini API</text></g>
+    <g transform="translate(1192 546)"><rect width="142" height="46" rx="13" class="card"/><circle cx="25" cy="23" r="12" fill="url(#aws)"/><text x="25" y="27" class="icon-text">GT</text><text x="48" y="28" class="card-title">Gutendex</text></g>
+  </g>
+  <g filter="url(#shadow)">
+    <rect x="610" y="665" width="754" height="145" rx="24" class="zone"/>
+    <text x="636" y="697" class="zone-title">OBSERVABILITY &amp; DELIVERY PIPELINE</text>
+    <g transform="translate(636 718)"><rect width="158" height="64" rx="14" class="card"/><circle cx="27" cy="32" r="15" fill="#f04f3d"/><text x="27" y="36" class="icon-text">P</text><text x="52" y="29" class="card-title">Prometheus</text><text x="52" y="47" class="card-sub">metrics</text></g>
+    <g transform="translate(810 718)"><rect width="158" height="64" rx="14" class="card"/><circle cx="27" cy="32" r="15" fill="#ff9f24"/><text x="27" y="36" class="icon-text">G</text><text x="52" y="29" class="card-title">Grafana</text><text x="52" y="47" class="card-sub">dashboards</text></g>
+    <g transform="translate(984 718)"><rect width="158" height="64" rx="14" class="card"/><circle cx="27" cy="32" r="15" fill="#a377ee"/><text x="27" y="36" class="icon-text">L</text><text x="52" y="29" class="card-title">Loki · Alloy</text><text x="52" y="47" class="card-sub">logs</text></g>
+    <g transform="translate(1158 718)"><rect width="176" height="64" rx="14" class="card"/><circle cx="27" cy="32" r="15" fill="#3d7fe8"/><text x="27" y="36" class="icon-text">GH</text><text x="52" y="29" class="card-title">GitHub Actions</text><text x="52" y="47" class="card-sub">CI/CD · k6</text></g>
+  </g>
+
+  <!-- flows -->
+  <path d="M224 390H273" class="flow-accent"/><path d="M417 350v17" class="flow"/><path d="M417 440v17" class="flow"/>
+  <path d="M534 404H610" class="flow-accent"/><text x="552" y="393" class="pill">API</text>
+  <path d="M534 494c40 0 38-120 76-120" class="flow"/><text x="546" y="477" class="pill">SPA</text>
+  <path d="M785 324v19" class="flow"/><path d="M934 406h76" class="flow-accent"/>
+  <path d="M934 455c42 0 35 85 76 85" class="flow"/><path d="M785 572v93" class="flow"/>
+  <path d="M1185 465v30" class="flow"/><path d="M1185 615v50" class="flow"/>
+
+  <g transform="translate(74 838)"><rect width="1290" height="1" fill="#2c4369"/><circle cx="8" cy="28" r="8" fill="#ff9f24"/><text x="26" y="33" class="sub">Orange path: public request flow</text><circle cx="278" cy="28" r="8" fill="#6d89b7"/><text x="296" y="33" class="sub">Blue path: service dependency / telemetry</text><text x="1290" y="33" class="sub" text-anchor="end">BookTown V2 · 2026</text></g>
+</svg>
