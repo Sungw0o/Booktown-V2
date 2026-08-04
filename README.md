@@ -1,6 +1,6 @@
 # BookTown V2
 
-> 고전 문학 원문을 수집하고 OpenAI 기반 요약·퀴즈·삽화를 생성하여 독서 경험으로 연결한 풀스택 서비스입니다.
+> 고전 문학 원문을 수집하고 OpenAI 기반으로 만화·요약·퀴즈를 생성하여 독서 경험으로 연결한 풀스택 서비스입니다.
 
 ![Java](https://img.shields.io/badge/Java-21-007396?logo=openjdk&logoColor=white)
 ![Spring Boot](https://img.shields.io/badge/Spring_Boot-4.0.6-6DB33F?logo=springboot&logoColor=white)
@@ -23,26 +23,7 @@
 
 ## 🏗️ System Architecture
 
-![BookTown V2 deployment architecture](docs/booktown-deployment-architecture.svg)
-
-```mermaid
-flowchart LR
-    U["사용자"] --> CF["CloudFront"]
-    CF --> S3["S3 · React Static Build"]
-    CF --> API["EC2 · Nginx / Spring Boot API"]
-
-    API --> MYSQL[("MySQL\n계정·도서 메타데이터")]
-    API --> MONGO[("MongoDB\n원문·AI 생성 콘텐츠")]
-    API --> REDIS[("Redis\n토큰·캐시·작업 상태")]
-    API --> CHROMA[("ChromaDB\nVector Store")]
-    API --> OPENAI["OpenAI API"]
-    API --> GUTENBERG["Gutendex / Project Gutenberg"]
-
-    API --> METRIC["Prometheus"]
-    METRIC --> GRAFANA["Grafana"]
-    API --> ALLOY["Grafana Alloy"]
-    ALLOY --> LOKI["Loki"]
-```
+![BookTown V2 deployment architecture](docs/다이어그램.png)
 
 ### AI 콘텐츠 생성 흐름
 
@@ -55,7 +36,7 @@ sequenceDiagram
     participant Chroma as ChromaDB
     participant Mongo as MongoDB
 
-    User->>API: 요약/퀴즈/삽화 생성 요청
+    User->>API: 만화/요약/퀴즈 생성 요청
     API-->>User: Job ID 반환
     API->>Job: 비동기 작업 위임
     Job->>Chroma: 관련 문맥 검색
@@ -95,35 +76,7 @@ flowchart LR
 
 > 자동 롤백 로직은 워크플로에 구현되어 있습니다. 의도적인 장애 주입과 실제 복원 로그를 이용한 런타임 검증은 아직 남아 있습니다.
 
-## ✨ 주요 기능 (Key Features)
-
-| 영역 | 주요 기능 |
-| --- | --- |
-| 도서 탐색 | Gutendex 검색과 도서 가져오기, 원문 열람, 도서 목록·상세·검색 |
-| AI 요약 | 원문과 벡터 검색 문맥을 활용한 비동기 요약 생성, 작업 상태 조회 |
-| AI 퀴즈 | 도서 기반 퀴즈 생성, 답안 제출과 결과 확인 |
-| AI 삽화 | 장면 기반 이미지 생성, 삽화 작업 이력과 결과 조회 |
-| 개인화 | 북마크, 독서 콘텐츠 관리, 사용자별 상태 제공 |
-| 인증/보안 | JWT, OAuth2, HttpOnly Refresh Token, Redis Lua 원자적 토큰 회전, Turnstile |
-| 운영 | MySQL·Redis·MongoDB·ChromaDB readiness, Micrometer 지표, 로그 수집 구성 |
-| 관리자 | 도서/사용자/AI 작업 현황을 확인하는 관리자 대시보드 |
-
-## 🔎 Design Highlights
-
-### 저장소 역할 분리
-
-- **MySQL**: 회원, 도서 메타데이터, 북마크 등 관계형 데이터
-- **MongoDB**: 긴 원문과 요약·퀴즈·삽화 같은 AI 생성 결과
-- **Redis**: Refresh Token, 캐시, 비동기 작업 상태
-- **ChromaDB**: 임베딩과 검색 문맥을 보관하는 Vector Store
-
-### 인증 정합성과 권한 경계
-
-- Refresh Token 회전을 Redis Lua 스크립트로 원자화해 동시 요청의 중간 상태를 제거했습니다.
-- 운영 Secret은 저장소에서 제외하고, 배포 과정에서 필요한 명령만 권한 경계 안에서 실행하도록 구성했습니다.
-- 프론트 배포는 AWS OIDC를 사용해 정적 Access Key 의존성을 제거했습니다.
-
-## 🧪 Validation Status
+### Validation Status
 
 | 항목 | 상태 |
 | --- | --- |
@@ -133,6 +86,19 @@ flowchart LR
 | Readiness | MySQL, Redis, MongoDB, ChromaDB 상태 확인 |
 | k6 | 스크립트 구문과 스모크 시나리오 구성, 성능 수치 추가 측정 필요 |
 | Rollback | 파이프라인 구현 완료, 장애 주입 기반 복원 증거 필요 |
+
+## ✨ 주요 기능 (Key Features)
+
+| 영역 | 주요 기능 |
+| --- | --- |
+| 도서 탐색 | Gutendex 검색과 도서 가져오기, 원문 열람, 도서 목록·상세·검색 |
+| AI 요약 | 원문과 벡터 검색 문맥을 활용한 비동기 요약 생성, 작업 상태 조회 |
+| AI 퀴즈 | 도서 기반 퀴즈 생성, 답안 제출과 결과 확인 |
+| AI 만화 | 장면 기반 이미지 생성, 만화 작업 이력과 결과 조회 |
+| 개인화 | 북마크, 독서 콘텐츠 관리, 사용자별 상태 제공 |
+| 인증/보안 | JWT, OAuth2, HttpOnly Refresh Token, Redis Lua 원자적 토큰 회전, Turnstile |
+| 운영 | MySQL·Redis·MongoDB·ChromaDB readiness, Micrometer 지표, 로그 수집 구성 |
+| 관리자 | 도서/사용자/AI 작업 현황을 확인하는 관리자 대시보드 |
 
 ## 🛠️ Local Development
 
@@ -168,10 +134,3 @@ BookTown-V2/
 ├─ docs/                     # 아키텍처와 운영 문서
 └─ .github/workflows/        # CI/CD 워크플로
 ```
-
-## 📚 Documentation
-
-- [Architecture](docs/booktown-deployment-architecture.svg)
-- [OpenAI AI Pipeline](BookTown-V2-Backend/docs/OPENAI_AI_PIPELINE.md)
-- [Frontend README](BookTown-V2-Frontend/README.md)
-- [Performance & Load Test Plan](BookTown-V2-Backend/docs/PERFORMANCE_LOAD_TEST_PLAN.md)

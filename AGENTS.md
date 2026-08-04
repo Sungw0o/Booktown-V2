@@ -468,3 +468,5 @@ React + TypeScript + Tailwind CSS로 구현하고,
 백엔드 폴더(BookTown-V2-Backend/)는 수정하지 말고
 .env 실제 값과 Secret은 사용하지 말아줘.
 ```
+
+## Imported Claude Cowork project instructions
