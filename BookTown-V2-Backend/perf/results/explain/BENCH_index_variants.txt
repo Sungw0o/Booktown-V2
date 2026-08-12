@@ -1,0 +1,40 @@
+=== quiz_submission 인덱스 후보 비교 (각 15회 측정, EXPLAIN ANALYZE 최상위 actual time) ===
+
+--- [기준] 인덱스 없음: idx_quiz_submission_user_id(user_id) 만 ---
+  HEAVY user_id=7  
+  raw(ms):  14.3 13.6 13.6 54.8 15.3 154 12.8 12.9 13.6 12.8 12.7 12.6 12.9 15.1 16.9
+  n=15  min=12.600  p50=13.600  p95=54.800  max=154.000  avg=25.860
+  LIGHT user_id=5000
+  raw(ms):  0.146 0.187 0.126 0.13 0.131 0.129 0.13 0.148 0.128 0.133 0.135 0.135 0.128 7.17 0.248
+  n=15  min=0.126  p50=0.133  p95=0.248  max=7.170  avg=0.614
+
+--- [후보1] (user_id, submitted_at) ASC ---
+  HEAVY user_id=7  
+  raw(ms):  2.76 2.77 3.04 2.58 2.75 2.6 2.75 2.67 2.64 2.55 2.69 2.69 2.6 3.18 2.51
+  n=15  min=2.510  p50=2.690  p95=3.040  max=3.180  avg=2.719
+  LIGHT user_id=5000
+  raw(ms):  0.172 0.272 0.295 0.25 0.185 0.188 0.185 0.184 0.202 0.192 0.188 0.181 0.185 0.185 0.184
+  n=15  min=0.172  p50=0.185  p95=0.272  max=0.295  avg=0.203
+
+--- [후보2] (user_id, submitted_at DESC) ---
+  HEAVY user_id=7  
+  raw(ms):  3.89 2.77 2.61 2.85 2.79 3.32 2.75 3.16 3.23 2.81 2.59 3.14 2.77 2.88 2.88
+  n=15  min=2.590  p50=2.850  p95=3.320  max=3.890  avg=2.963
+  LIGHT user_id=5000
+  raw(ms):  0.205 0.191 0.187 0.208 0.204 0.211 0.328 0.189 0.189 0.198 0.186 0.196 0.22 0.201 0.19
+  n=15  min=0.186  p50=0.198  p95=0.220  max=0.328  avg=0.207
+
+--- [후보3-반례] (submitted_at, user_id) 컬럼 순서 반대 ---
+  HEAVY user_id=7  
+  raw(ms):  5.85 6.57 5.67 5.96 5.52 5.84 5.73 5.84 5.75 5.56 5.61 5.94 5.74 5.85 5.62
+  n=15  min=5.520  p50=5.750  p95=5.960  max=6.570  avg=5.803
+  LIGHT user_id=5000
+  raw(ms):  0.198 0.196 0.19 0.205 0.201 0.275 0.191 0.213 0.207 0.308 0.403 0.217 0.214 0.366 0.229
+  n=15  min=0.190  p50=0.213  p95=0.366  max=0.403  avg=0.241
+  [LIGHT 실행계획]
+EXPLAIN
+-> Limit: 20 row(s)  (cost=17.5 rows=20) (actual time=0.217..0.218 rows=20 loops=1)
+    -> Sort: qs.submitted_at DESC, limit input to 20 row(s) per chunk  (cost=17.5 rows=50) (actual time=0.216..0.217 rows=20 loops=1)
+        -> Index lookup on qs using idx_quiz_submission_user_id (user_id=5000)  (cost=17.5 rows=50) (actual time=0.196..0.2 rows=50 loops=1)
+
+벤치완료

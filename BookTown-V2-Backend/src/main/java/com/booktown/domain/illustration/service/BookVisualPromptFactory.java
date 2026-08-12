@@ -56,8 +56,29 @@ public class BookVisualPromptFactory {
         );
     }
 
+    /**
+     * Scene 엔티티를 직접 받는 기존 시그니처. 값 기반 오버로드에 위임한다.
+     *
+     * <p>주의: 이 메서드는 {@code scene.getBook()} 으로 LAZY 프록시를 초기화하므로
+     * 반드시 영속성 컨텍스트가 열려 있는 상태에서 호출해야 한다.
+     * 트랜잭션 밖(외부 I/O 구간)에서는 값 기반 오버로드를 사용할 것.
+     */
     public String createScenePrompt(Scene scene, IllustrationStyle requestedStyle, String promptHint) {
         Book book = scene.getBook();
+        return createScenePrompt(
+                book.getTitle(), book.getAuthor(),
+                scene.getTitle(), scene.getExcerpt(),
+                requestedStyle, promptHint
+        );
+    }
+
+    /**
+     * 트랜잭션 밖에서 안전하게 호출할 수 있는 값 기반 오버로드.
+     * 엔티티 대신 이미 추출된 문자열만 받으므로 LazyInitializationException 이 발생하지 않는다.
+     */
+    public String createScenePrompt(String bookTitle, String bookAuthor,
+                                    String sceneTitle, String sceneExcerpt,
+                                    IllustrationStyle requestedStyle, String promptHint) {
         return """
                 Create a vertical full-bleed story panel from the same visual series identified below.
                 Keep recurring characters visually consistent with the series identity. Show one decisive action or emotional beat.
@@ -71,11 +92,11 @@ public class BookVisualPromptFactory {
                 Additional direction: %s
                 """.formatted(
                 STYLE_BIBLE,
-                book.getTitle(),
-                book.getAuthor(),
+                bookTitle,
+                bookAuthor,
                 requestedStyle.name().toLowerCase(),
-                scene.getTitle(),
-                limit(scene.getExcerpt(), 700),
+                sceneTitle,
+                limit(sceneExcerpt, 700),
                 limit(promptHint, 300)
         );
     }

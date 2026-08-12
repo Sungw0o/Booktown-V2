@@ -28,6 +28,9 @@ import java.time.LocalDateTime;
         name = "summary_job",
         indexes = {
                 @Index(name = "idx_summary_job_user_book", columnList = "user_id, book_id"),
+                // 일일 생성 횟수 제한: SELECT COUNT(*) WHERE user_id = ? AND created_at > ?
+                // COUNT 대상 컬럼이 모두 인덱스에 있어 covering index 로 동작한다.
+                @Index(name = "idx_summary_job_user_created", columnList = "user_id, created_at"),
                 @Index(name = "idx_summary_job_status", columnList = "status")
         }
 )

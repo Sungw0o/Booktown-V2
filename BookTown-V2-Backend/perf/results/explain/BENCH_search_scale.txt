@@ -1,0 +1,23 @@
+=== 데이터 규모별 LIKE 검색 비용 (선형 증가 확인) ===
+※ 기존 perf 리포트(2026-07-09)는 book 5,000건 기준 p95 21.7ms 로 '문제 없음' 결론이었다.
+   같은 쿼리가 규모에 따라 어떻게 변하는지 확인한다.
+
+───── book 5000건 ─────
+  LIKE 목록 쿼리                                             2.17 ms/query  (20회 총 43 ms)
+  LIKE count 쿼리                                          2.12 ms/query  (20회 총 42 ms)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	b	NULL	ALL	NULL	NULL	NULL	NULL	5044	20.99	Using where; Using filesort
+
+───── book 50000건 ─────
+  LIKE 목록 쿼리                                            16.48 ms/query  (20회 총 330 ms)
+  LIKE count 쿼리                                         15.46 ms/query  (20회 총 309 ms)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	b	NULL	ALL	NULL	NULL	NULL	NULL	49385	20.99	Using where; Using filesort
+
+───── book 200000건 ─────
+  LIKE 목록 쿼리                                            64.42 ms/query  (20회 총 1288 ms)
+  LIKE count 쿼리                                         60.63 ms/query  (20회 총 1213 ms)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	b	NULL	ALL	NULL	NULL	NULL	NULL	197537	20.99	Using where; Using filesort
+
+규모벤치완료

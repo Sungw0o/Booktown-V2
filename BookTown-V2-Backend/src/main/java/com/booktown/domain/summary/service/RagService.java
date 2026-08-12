@@ -1,6 +1,5 @@
 package com.booktown.domain.summary.service;
 
-import com.booktown.domain.book.entity.Chapter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
@@ -25,18 +24,23 @@ public class RagService {
 
     private final VectorStore vectorStore;
 
-    public void indexChapters(Long bookId, List<Chapter> chapters) {
+    /**
+     * Chapter 엔티티가 아니라 {@link ChapterContent} 값 객체를 받는다.
+     * 이 메서드는 Chroma 로 네트워크 호출을 하므로 트랜잭션 밖에서 실행되며,
+     * 그 시점에는 영속성 컨텍스트가 이미 닫혀 있어 엔티티를 안전하게 다룰 수 없기 때문이다.
+     */
+    public void indexChapters(Long bookId, List<ChapterContent> chapters) {
         List<Document> documents = new ArrayList<>();
-        for (Chapter chapter : chapters) {
-            if (chapter.getContent() == null || chapter.getContent().isBlank()) continue;
-            List<String> chunks = chunkText(chapter.getContent());
+        for (ChapterContent chapter : chapters) {
+            if (!chapter.hasContent()) continue;
+            List<String> chunks = chunkText(chapter.content());
             for (int i = 0; i < chunks.size(); i++) {
                 documents.add(new Document(
                         chunks.get(i),
                         Map.of(
                                 BOOK_ID_KEY, bookId.toString(),
-                                "chapterId", chapter.getId().toString(),
-                                "chapterNumber", String.valueOf(chapter.getChapterNumber()),
+                                "chapterId", String.valueOf(chapter.chapterId()),
+                                "chapterNumber", String.valueOf(chapter.chapterNumber()),
                                 "chunkIndex", String.valueOf(i)
                         )
                 ));

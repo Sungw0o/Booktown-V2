@@ -1,0 +1,24 @@
+=== A3 count 쿼리: 단일 인덱스 vs 복합 인덱스 공정 비교 ===
+동일 DB·동일 시점에 두 인덱스를 모두 두고 FORCE INDEX 로 비교한다.
+(별도 실행으로 나눠 측정하면 시스템 노이즈가 섞여 비교가 불공정해진다)
+
+-- 인덱스 크기 비교 --
+INDEX_NAME	cols
+idx_quiz_submission_quiz_id	quiz_id
+idx_quiz_submission_user_submitted	user_id,submitted_at
+PRIMARY	id
+tmp_user_only	user_id
+
+  단일 (user_id)          
+  raw(ms):  1.84 2.03 1.91 1.78 1.92 1.72 1.78 1.83 1.69 1.91 1.79 4.08 1.99 1.87 2.29 1.69 2.41 1.75 1.69 1.73 1.72 1.79 1.73 1.85 1.72
+  n=25  min=1.690  p50=1.790  p95=2.410  max=4.080  avg=1.940
+  복합 (user_id,submitted)
+  raw(ms):  1.79 1.81 1.86 1.78 1.74 1.93 2.37 2.13 1.73 1.74 1.73 1.88 1.84 1.89 3 3.35 2.91 1.93 3 1.86 1.76 1.76 1.71 1.82 1.84
+  n=25  min=1.710  p50=1.840  p95=3.000  max=3.350  avg=2.046
+
+-- 실행계획 (둘 다 covering 인지 확인) --
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	qs	NULL	ref	tmp_user_only	tmp_user_only	8	const	18274	100.00	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	qs	NULL	ref	idx_quiz_submission_user_submitted	idx_quiz_submission_user_submitted	8	const	19112	100.00	Using index
+공정비교완료

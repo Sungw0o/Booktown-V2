@@ -1,14 +1,9 @@
 package com.booktown.domain.admin.service;
 
-import com.booktown.domain.admin.entity.ContentJob;
 import com.booktown.domain.admin.gutendex.GutendexClient;
-import com.booktown.domain.admin.repository.ContentJobRepository;
-import com.booktown.domain.book.entity.Book;
-import com.booktown.domain.book.entity.Chapter;
-import com.booktown.domain.book.entity.Scene;
-import com.booktown.domain.book.repository.BookRepository;
-import com.booktown.domain.book.repository.ChapterRepository;
-import com.booktown.domain.book.repository.SceneRepository;
+import com.booktown.domain.admin.service.ContentJobTransactionService.ContentJobContext;
+import com.booktown.domain.admin.service.ContentJobTransactionService.ParsedChapter;
+import com.booktown.domain.admin.service.ContentJobTransactionService.ParsedContent;
 import com.booktown.global.exception.CustomException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -16,7 +11,6 @@ import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -38,82 +32,105 @@ public class ContentProcessor {
     private static final Pattern TITLE_PATTERN = Pattern.compile("(?im)^Title:\\s*(.+)$");
     private static final Pattern AUTHOR_PATTERN = Pattern.compile("(?im)^Author:\\s*(.+)$");
 
-    private final ContentJobRepository contentJobRepository;
-    private final BookRepository bookRepository;
-    private final ChapterRepository chapterRepository;
-    private final SceneRepository sceneRepository;
+    private final ContentJobTransactionService transactionService;
     private final GutendexClient gutendexClient;
     private final ObjectProvider<ChatClient> chatClientProvider;
     private final ContentChapterSegmenter contentChapterSegmenter;
 
     @Async("contentProcessingExecutor")
-    @Transactional
     public void process(Long jobId, byte[] rawContent) {
-        ContentJob job = contentJobRepository.findById(jobId).orElseThrow();
-        job.markProcessing();
-        contentJobRepository.save(job);
-        processContent(job, rawContent);
+        ContentJobContext ctx = startProcessingQuietly(jobId);
+        if (ctx == null) {
+            return;
+        }
+        processContent(ctx, rawContent);
     }
 
     @Async("contentProcessingExecutor")
-    @Transactional
     public void processFromGutendex(Long jobId, String textUrl) {
-        ContentJob job = contentJobRepository.findById(jobId).orElseThrow();
-        job.markProcessing();
-        contentJobRepository.save(job);
+        ContentJobContext ctx = startProcessingQuietly(jobId);
+        if (ctx == null) {
+            return;
+        }
 
+        // 다운로드는 트랜잭션 밖에서 수행한다.
+        // 이전 구조에서는 이 호출(타임아웃 10초)이 트랜잭션 안에 있어
+        // 네트워크 대기 내내 DB 커넥션을 점유했다.
+        byte[] rawContent;
         try {
-            byte[] rawContent = gutendexClient.downloadText(textUrl);
-            processContent(job, rawContent);
+            rawContent = gutendexClient.downloadText(textUrl);
         } catch (CustomException e) {
             log.warn("ContentJob {} failed while downloading Gutendex text: {}", jobId, e.getMessage());
-            job.markFailed(e.getMessage(), true);
-            contentJobRepository.save(job);
+            markFailedQuietly(jobId, e.getMessage());
+            return;
         } catch (Exception e) {
             log.error("ContentJob {} failed while importing Gutendex text: {}", jobId, e.getMessage(), e);
-            job.markFailed(e.getMessage(), true);
-            contentJobRepository.save(job);
+            markFailedQuietly(jobId, e.getMessage());
+            return;
+        }
+
+        processContent(ctx, rawContent);
+    }
+
+    private ContentJobContext startProcessingQuietly(Long jobId) {
+        try {
+            return transactionService.startProcessing(jobId);
+        } catch (Exception e) {
+            log.error("ContentJob {} could not start: {}", jobId, e.getMessage(), e);
+            return null;
         }
     }
 
-    private void processContent(ContentJob job, byte[] rawContent) {
+    /**
+     * 파싱과 AI 번역은 트랜잭션 밖에서, DB 저장만 짧은 트랜잭션으로 수행한다.
+     */
+    private void processContent(ContentJobContext ctx, byte[] rawContent) {
         try {
+            // ── 트랜잭션 밖: CPU 파싱 + AI 번역 호출 ──
             String rawText = new String(rawContent, StandardCharsets.UTF_8);
             String text = stripProjectGutenbergBoilerplate(rawText);
             List<ContentChapterSegmenter.ChapterSegment> segments = contentChapterSegmenter.createSegments(text);
 
-            Book book = job.getBook();
             CatalogMetadata catalogMetadata = translateCatalogMetadata(new CatalogMetadata(
-                    normalizeTitle(extractMetadata(rawText, TITLE_PATTERN).orElse(book.getTitle())),
-                    normalizeAuthor(extractMetadata(rawText, AUTHOR_PATTERN).orElse(book.getAuthor())),
+                    normalizeTitle(extractMetadata(rawText, TITLE_PATTERN).orElse(ctx.bookTitle())),
+                    normalizeAuthor(extractMetadata(rawText, AUTHOR_PATTERN).orElse(ctx.bookAuthor())),
                     buildIntroDescription(text)
             ));
-            book.updateCatalogMetadata(catalogMetadata.title(), catalogMetadata.author(), catalogMetadata.description());
 
-            List<Chapter> chapters = new ArrayList<>(segments.size());
-            for (int i = 0; i < segments.size(); i++) {
-                chapters.add(Chapter.create(book, i + 1, segments.get(i).title(), segments.get(i).content()));
+            List<ParsedChapter> parsedChapters = new ArrayList<>(segments.size());
+            for (ContentChapterSegmenter.ChapterSegment segment : segments) {
+                parsedChapters.add(new ParsedChapter(
+                        segment.title(),
+                        segment.content(),
+                        buildExcerpt(segment.content())
+                ));
             }
-            chapterRepository.saveAll(chapters);
 
-            List<Scene> scenes = new ArrayList<>(chapters.size());
-            for (int i = 0; i < chapters.size(); i++) {
-                Chapter chapter = chapters.get(i);
-                String excerpt = buildExcerpt(chapter.getContent());
-                scenes.add(Scene.create(book, chapter, chapter.getTitle(), excerpt, i + 1));
-            }
-            sceneRepository.saveAll(scenes);
-
-            book.markContentUploaded();
-            bookRepository.save(book);
-
-            job.markCompleted(chapters.size());
-            contentJobRepository.save(job);
-            log.info("ContentJob {} completed: {} chapters, {} scenes", job.getId(), chapters.size(), scenes.size());
+            // ── 짧은 트랜잭션: 저장 + COMPLETED ──
+            int chapterCount = transactionService.saveContentAndComplete(
+                    ctx.jobId(),
+                    ctx.bookId(),
+                    new ParsedContent(
+                            catalogMetadata.title(),
+                            catalogMetadata.author(),
+                            catalogMetadata.description(),
+                            parsedChapters
+                    )
+            );
+            log.info("ContentJob {} completed: {} chapters, {} scenes",
+                    ctx.jobId(), chapterCount, chapterCount);
         } catch (Exception e) {
-            log.error("ContentJob {} failed: {}", job.getId(), e.getMessage(), e);
-            job.markFailed(e.getMessage(), true);
-            contentJobRepository.save(job);
+            log.error("ContentJob {} failed: {}", ctx.jobId(), e.getMessage(), e);
+            markFailedQuietly(ctx.jobId(), e.getMessage());
+        }
+    }
+
+    private void markFailedQuietly(Long jobId, String message) {
+        try {
+            transactionService.markFailed(jobId, message, true);
+        } catch (Exception e) {
+            log.error("ContentJob {} stuck in PROCESSING: failed to persist FAILED state: {}",
+                    jobId, e.getMessage(), e);
         }
     }
 

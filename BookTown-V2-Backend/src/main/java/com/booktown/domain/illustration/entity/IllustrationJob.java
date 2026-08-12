@@ -27,7 +27,11 @@ import java.time.LocalDateTime;
 @Table(
         name = "illustration_job",
         indexes = {
+                // user_id 단일 인덱스는 existsByUserIdAndSceneIdAndStatusIn 의
+                // index_merge intersect(scene_id, user_id) 에 실제로 사용되므로 유지한다.
                 @Index(name = "idx_illustration_job_user_id", columnList = "user_id"),
+                // 일일 생성 횟수 제한: SELECT COUNT(*) WHERE user_id = ? AND created_at > ?
+                @Index(name = "idx_illustration_job_user_created", columnList = "user_id, created_at"),
                 @Index(name = "idx_illustration_job_scene_id", columnList = "scene_id")
         }
 )

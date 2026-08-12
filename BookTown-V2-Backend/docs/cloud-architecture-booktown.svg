@@ -1,0 +1,214 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="1020" viewBox="0 0 1440 1020">
+  <defs>
+    <style>
+      .title { font: 800 48px Arial, "Malgun Gothic", sans-serif; fill: #111827; }
+      .label { font: 700 16px Arial, "Malgun Gothic", sans-serif; fill: #111827; }
+      .small { font: 600 12px Arial, "Malgun Gothic", sans-serif; fill: #374151; }
+      .tiny { font: 600 10px Arial, "Malgun Gothic", sans-serif; fill: #475569; }
+      .port { font: 800 11px Arial, sans-serif; fill: #111827; }
+      .aws-label { font: 700 12px Arial, sans-serif; fill: #111827; }
+      .box { fill: #fbfaf6; stroke: #374151; stroke-width: 1.6; }
+      .region { fill: #f8fffb; stroke: #86efac; stroke-width: 1.2; stroke-dasharray: 4 4; }
+      .vpc { fill: #f7f4ff; stroke: #a78bfa; stroke-width: 1.5; }
+      .az { fill: #ffffff; stroke: #c4b5fd; stroke-width: 1.2; stroke-dasharray: 4 3; }
+      .public { fill: #f7fee7; stroke: #d9f99d; stroke-width: 1.1; }
+      .private { fill: #ecfeff; stroke: #a5f3fc; stroke-width: 1.1; }
+      .container { fill: #f1f5f9; stroke: #cbd5e1; stroke-width: 1.2; stroke-dasharray: 4 3; }
+      .line { fill: none; stroke: #475569; stroke-width: 2; marker-end: url(#arrow); }
+      .line-soft { fill: none; stroke: #64748b; stroke-width: 1.5; marker-end: url(#arrow); }
+      .line-dashed { fill: none; stroke: #64748b; stroke-width: 1.5; stroke-dasharray: 5 4; marker-end: url(#arrow); }
+      .icon-text { font: 800 13px Arial, sans-serif; fill: #ffffff; text-anchor: middle; dominant-baseline: middle; }
+      .icon-text-dark { font: 800 13px Arial, sans-serif; fill: #111827; text-anchor: middle; dominant-baseline: middle; }
+    </style>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#475569" />
+    </marker>
+    <linearGradient id="gold" x1="0" x2="1">
+      <stop offset="0" stop-color="#f4d35e"/>
+      <stop offset="1" stop-color="#e9c64f"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1440" height="1020" fill="#ffffff"/>
+  <circle cx="1315" cy="125" r="138" fill="url(#gold)" opacity="0.85"/>
+  <circle cx="1395" cy="150" r="85" fill="#fff7d6" opacity="0.9"/>
+
+  <text x="54" y="86" class="title">2. 클라우드 아키텍처</text>
+
+  <!-- actors -->
+  <g transform="translate(186,132)">
+    <circle cx="0" cy="0" r="17" fill="#eff6ff" stroke="#60a5fa" stroke-width="3"/>
+    <path d="M-25 45c6-28 44-28 50 0" fill="none" stroke="#60a5fa" stroke-width="3"/>
+    <text x="-33" y="66" class="tiny">developer</text>
+  </g>
+  <g transform="translate(650,132)">
+    <circle cx="0" cy="0" r="17" fill="#eff6ff" stroke="#60a5fa" stroke-width="3"/>
+    <path d="M-25 45c6-28 44-28 50 0" fill="none" stroke="#60a5fa" stroke-width="3"/>
+    <text x="-18" y="66" class="tiny">client</text>
+  </g>
+
+  <!-- AWS cloud frame -->
+  <rect x="46" y="220" width="1330" height="720" class="box"/>
+  <rect x="50" y="224" width="18" height="18" rx="2" fill="#111827"/>
+  <text x="74" y="238" class="aws-label">AWS Cloud</text>
+
+  <!-- top global edge -->
+  <g id="edge">
+    <rect x="720" y="236" width="56" height="56" rx="7" fill="#ef4444"/>
+    <text x="748" y="264" class="icon-text">WAF</text>
+    <rect x="720" y="318" width="56" height="56" rx="7" fill="#7c3aed"/>
+    <text x="748" y="346" class="icon-text">R53</text>
+    <text x="787" y="346" class="small">www.booktown.shop</text>
+    <text x="787" y="363" class="small">api.booktown.shop</text>
+    <rect x="720" y="400" width="56" height="56" rx="7" fill="#6366f1"/>
+    <text x="748" y="428" class="icon-text">CF</text>
+    <rect x="1088" y="575" width="68" height="68" rx="8" fill="#dc2626"/>
+    <text x="1122" y="604" class="icon-text">ACM</text>
+    <text x="1122" y="622" class="icon-text">TLS</text>
+  </g>
+
+  <!-- frontend S3 -->
+  <g>
+    <rect x="278" y="365" width="76" height="58" rx="8" fill="#84a942"/>
+    <path d="M300 383h32v24h-32z" fill="none" stroke="#ffffff" stroke-width="3"/>
+    <text x="316" y="398" class="icon-text">S3</text>
+    <text x="262" y="448" class="label">Frontend Static Hosting</text>
+    <text x="276" y="468" class="small">React 19 + Vite build assets</text>
+  </g>
+
+  <!-- CI/CD -->
+  <g>
+    <rect x="94" y="320" width="92" height="74" rx="10" fill="#111827"/>
+    <text x="140" y="351" class="icon-text">GitHub</text>
+    <text x="140" y="371" class="icon-text">Actions</text>
+    <rect x="94" y="450" width="92" height="74" rx="10" fill="#0f172a"/>
+    <text x="140" y="480" class="icon-text">GHCR</text>
+    <text x="140" y="500" class="icon-text">Image</text>
+  </g>
+
+  <!-- Region / VPC -->
+  <rect x="82" y="560" width="570" height="320" class="region"/>
+  <text x="98" y="584" class="label">Region / Production VPC</text>
+  <rect x="112" y="604" width="500" height="238" class="vpc"/>
+  <text x="128" y="626" class="small">VPC</text>
+
+  <!-- public subnet -->
+  <rect x="130" y="650" width="142" height="154" class="public"/>
+  <text x="144" y="672" class="small">Public subnet</text>
+  <rect x="160" y="704" width="72" height="72" rx="12" fill="#f59e0b"/>
+  <text x="196" y="728" class="icon-text">NAT</text>
+  <text x="196" y="748" class="icon-text">GW</text>
+
+  <!-- private app subnet -->
+  <rect x="304" y="650" width="274" height="154" class="private"/>
+  <text x="318" y="672" class="small">Private subnet / EC2</text>
+  <rect x="330" y="690" width="222" height="92" class="container"/>
+  <text x="344" y="713" class="small">Docker Compose</text>
+  <rect x="354" y="730" width="66" height="38" rx="6" fill="#16a34a"/>
+  <text x="387" y="750" class="icon-text">Nginx</text>
+  <rect x="456" y="730" width="70" height="38" rx="6" fill="#84cc16"/>
+  <text x="491" y="750" class="icon-text">Spring</text>
+
+  <!-- private data subnet -->
+  <rect x="304" y="815" width="274" height="70" class="private"/>
+  <text x="318" y="836" class="small">Persistent volumes</text>
+  <rect x="330" y="846" width="52" height="30" rx="5" fill="#2563eb"/>
+  <text x="356" y="862" class="icon-text">SQL</text>
+  <rect x="396" y="846" width="52" height="30" rx="5" fill="#dc2626"/>
+  <text x="422" y="862" class="icon-text">Redis</text>
+  <rect x="462" y="846" width="52" height="30" rx="5" fill="#16a34a"/>
+  <text x="488" y="862" class="icon-text">Mongo</text>
+  <rect x="528" y="846" width="52" height="30" rx="5" fill="#7c3aed"/>
+  <text x="554" y="862" class="icon-text">Vec</text>
+
+  <!-- Observability region -->
+  <rect x="700" y="560" width="570" height="320" class="region"/>
+  <text x="716" y="584" class="label">Operations / Observability</text>
+  <rect x="730" y="604" width="500" height="238" class="vpc"/>
+  <text x="746" y="626" class="small">Monitoring services on EC2</text>
+  <rect x="762" y="662" width="112" height="72" rx="10" fill="#f97316"/>
+  <text x="818" y="696" class="icon-text">Grafana</text>
+  <text x="818" y="716" class="icon-text">3001</text>
+  <rect x="916" y="662" width="122" height="72" rx="10" fill="#dc2626"/>
+  <text x="977" y="696" class="icon-text">Prometheus</text>
+  <text x="977" y="716" class="icon-text">9090</text>
+  <rect x="1080" y="662" width="92" height="72" rx="10" fill="#0ea5e9"/>
+  <text x="1126" y="696" class="icon-text">Loki</text>
+  <text x="1126" y="716" class="icon-text">3100</text>
+  <rect x="762" y="774" width="112" height="46" rx="8" fill="#64748b"/>
+  <text x="818" y="798" class="icon-text">cAdvisor</text>
+  <rect x="916" y="774" width="122" height="46" rx="8" fill="#64748b"/>
+  <text x="977" y="798" class="icon-text">Node exporter</text>
+  <rect x="1080" y="774" width="92" height="46" rx="8" fill="#64748b"/>
+  <text x="1126" y="798" class="icon-text">Alloy</text>
+
+  <!-- right side external dependencies -->
+  <g>
+    <rect x="1320" y="564" width="56" height="56" rx="7" fill="#dc2626"/>
+    <text x="1348" y="592" class="icon-text">ACM</text>
+    <rect x="1320" y="642" width="56" height="56" rx="7" fill="#ef4444"/>
+    <text x="1348" y="670" class="icon-text">IAM</text>
+    <rect x="1320" y="720" width="56" height="56" rx="7" fill="#db2777"/>
+    <text x="1348" y="748" class="icon-text">Logs</text>
+  </g>
+
+  <!-- arrows from actors and edge -->
+  <path d="M186 149 L186 320 L720 320" class="line-soft"/>
+  <path d="M650 149 L650 264 L720 264" class="line-soft"/>
+  <path d="M748 292 L748 318" class="line"/>
+  <path d="M748 374 L748 400" class="line"/>
+  <text x="690" y="250" class="port">HTTPS 443</text>
+
+  <!-- frontend path -->
+  <path d="M720 428 L354 394" class="line"/>
+  <text x="520" y="390" class="port">CloudFront origin</text>
+  <path d="M354 394 L720 428" class="line-soft"/>
+  <text x="380" y="436" class="small">Static assets served at www.booktown.shop</text>
+
+  <!-- api path -->
+  <path d="M748 456 L748 504 L441 504 L441 690" class="line"/>
+  <text x="492" y="490" class="port">api.booktown.shop / HTTPS 443</text>
+  <path d="M420 749 L456 749" class="line"/>
+  <text x="427" y="735" class="port">8080</text>
+  <path d="M491 768 L491 846" class="line-soft"/>
+  <path d="M491 768 L422 846" class="line-soft"/>
+  <path d="M491 768 L488 846" class="line-soft"/>
+  <path d="M491 768 L554 846" class="line-soft"/>
+  <text x="510" y="822" class="port">3306 / 6379 / 27017 / 8000</text>
+
+  <!-- CI/CD path -->
+  <path d="M186 357 L278 394" class="line-dashed"/>
+  <text x="204" y="360" class="tiny">frontend deploy</text>
+  <path d="M140 394 L140 450" class="line-dashed"/>
+  <path d="M186 487 L330 710" class="line-dashed"/>
+  <text x="178" y="510" class="tiny">backend image pull</text>
+
+  <!-- Monitoring paths -->
+  <path d="M552 710 L916 698" class="line-soft"/>
+  <text x="630" y="690" class="port">/actuator/prometheus</text>
+  <path d="M552 758 L1080 798" class="line-soft"/>
+  <text x="705" y="760" class="tiny">application / nginx / docker logs</text>
+  <path d="M916 698 L874 698" class="line"/>
+  <path d="M1080 698 L1038 698" class="line"/>
+  <path d="M748 456 L818 662" class="line-soft"/>
+  <text x="784" y="548" class="port">grafana.booktown.shop</text>
+
+  <!-- External dependencies -->
+  <rect x="1168" y="322" width="110" height="64" rx="10" fill="#f97316"/>
+  <text x="1223" y="350" class="icon-text">Gemini</text>
+  <text x="1223" y="370" class="icon-text">API</text>
+  <rect x="1168" y="418" width="110" height="64" rx="10" fill="#475569"/>
+  <text x="1223" y="446" class="icon-text">Gutendex</text>
+  <text x="1223" y="466" class="icon-text">Books</text>
+  <path d="M526 730 L1168 354" class="line-soft"/>
+  <text x="820" y="512" class="tiny">AI summary / illustration requests</text>
+  <path d="M526 750 L1168 450" class="line-soft"/>
+  <text x="822" y="565" class="tiny">classic book metadata / text import</text>
+
+  <!-- legend -->
+  <g transform="translate(72,930)">
+    <rect x="0" y="0" width="1240" height="48" rx="8" fill="#f8fafc" stroke="#e2e8f0"/>
+    <text x="18" y="30" class="small">Main flow: Client → WAF/Route 53 → CloudFront/S3 for frontend, CloudFront/API domain → EC2 Nginx → Spring Boot backend → MySQL/Redis/MongoDB/ChromaDB.</text>
+    <text x="880" y="30" class="small">Monitoring: Prometheus/Grafana/Loki. CI/CD: GitHub Actions + GHCR.</text>
+  </g>
+</svg>

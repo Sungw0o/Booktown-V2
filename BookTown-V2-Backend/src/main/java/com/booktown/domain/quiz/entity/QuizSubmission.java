@@ -23,7 +23,9 @@ import java.time.LocalDateTime;
 @Table(
         name = "quiz_submission",
         indexes = {
-                @Index(name = "idx_quiz_submission_user_id", columnList = "user_id"),
+                // 퀴즈 이력 조회: WHERE user_id = ? ORDER BY submitted_at DESC LIMIT ?
+                // user_id 단일 인덱스는 이 복합 인덱스의 좌측 프리픽스이므로 중복이라 제거했다.
+                @Index(name = "idx_quiz_submission_user_submitted", columnList = "user_id, submitted_at"),
                 @Index(name = "idx_quiz_submission_quiz_id", columnList = "quiz_id")
         }
 )

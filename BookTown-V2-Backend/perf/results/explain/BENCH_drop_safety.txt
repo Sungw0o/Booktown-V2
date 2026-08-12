@@ -1,0 +1,44 @@
+=== idx_quiz_submission_user_id 삭제 안전성 검증 ===
+quiz_submission 을 참조하는 모든 Repository 쿼리:
+  1) existsByQuizIdAndUserId / findByQuizIdAndUserId  -> WHERE quiz_id=? AND user_id=?
+  2) findAllByUserIdOrderBySubmittedAtDesc            -> WHERE user_id=? ORDER BY submitted_at DESC
+  3) (1,2 의 Page count)                              -> COUNT WHERE user_id=?
+
+--- [상태1] 현행 (user_id 단일 인덱스 있음, 복합 없음) ---
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	qs	NULL	ref	idx_quiz_submission_user_id,idx_quiz_submission_quiz_id	idx_quiz_submission_quiz_id	8	const	10	0.88	Using where
+  exists(quiz+user)
+  raw(ms):  0.0426 0.0394 0.0393 0.0349 0.0372 0.043 0.0448 0.0416 0.0401 0.031 0.0382 0.0458 0.0466 0.0435 0.0471
+  n=15  min=0.031  p50=0.042  p95=0.047  max=0.047  avg=0.041
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	qs	NULL	ref	idx_quiz_submission_user_id	idx_quiz_submission_user_id	8	const	17580	100.00	Using index
+  count(user)      
+  raw(ms):  1.23 1.25 1.21 1.35 1.26 1.3 1.3 1.33 1.22 1.27 1.24 1.19 1.2 1.31 1.56
+  n=15  min=1.190  p50=1.260  p95=1.350  max=1.560  avg=1.281
+
+--- [상태2] 복합 추가 + user_id 단일 유지 (둘 다 존재) ---
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	qs	NULL	ref	idx_quiz_submission_user_id,idx_quiz_submission_quiz_id,idx_quiz_submission_user_submitted	idx_quiz_submission_quiz_id	8	const	10	0.88	Using where
+  exists(quiz+user)
+  raw(ms):  0.0887 0.0344 0.0355 0.0344 0.0359 0.0363 0.0359 0.0336 0.0356 0.0338 0.0365 0.0369 0.035 0.0367 0.0363
+  n=15  min=0.034  p50=0.036  p95=0.037  max=0.089  avg=0.039
+  count(user)      
+  raw(ms):  1.16 1.23 1.31 1.28 1.16 1.18 1.21 1.22 1.18 1.28 1.31 1.17 1.24 1.18 1.22
+  n=15  min=1.160  p50=1.220  p95=1.310  max=1.310  avg=1.222
+
+--- [상태3] 복합만 유지, user_id 단일 삭제 ---
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	qs	NULL	ref	idx_quiz_submission_quiz_id,idx_quiz_submission_user_submitted	idx_quiz_submission_quiz_id	8	const	10	0.96	Using where
+  exists(quiz+user)
+  raw(ms):  0.0356 0.0361 0.0576 0.0353 0.0358 0.0386 0.065 0.0355 0.0337 0.0364 0.0348 0.0359 0.0424 0.0609 0.0549
+  n=15  min=0.034  p50=0.036  p95=0.061  max=0.065  avg=0.043
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	qs	NULL	ref	idx_quiz_submission_user_submitted	idx_quiz_submission_user_submitted	8	const	19112	100.00	Using index
+  count(user)      
+  raw(ms):  1.16 1.25 1.35 1.22 1.22 1.59 1.22 1.23 1.17 1.21 1.28 1.28 1.22 1.24 1.2
+  n=15  min=1.160  p50=1.220  p95=1.350  max=1.590  avg=1.256
+
+  [인덱스 저장 크기 변화]
+idx_mb
+135.3
+안전성검증완료

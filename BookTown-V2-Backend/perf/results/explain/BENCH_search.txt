@@ -1,0 +1,50 @@
+=== 도서 검색 개선안 실측 비교 (book 200,000건) ===
+@@ngram_token_size:
+2
+
+--- [기준] 현행 LIKE '%q%' OR ---
+  검색 1페이지
+  raw(ms):  77.3 82.5 81.3 80.7 77 80.5 83.3 78.7 81.6 78.7
+  n=10  min=77.000  p50=80.500  p95=83.300  max=83.300  avg=80.160
+  count 쿼리 
+  raw(ms):  65.9 65.8 65.6 64.4 65.3 62.8 65.4 65.6 68.9 65.7
+  n=10  min=62.800  p50=65.600  p95=68.900  max=68.900  avg=65.540
+
+--- [후보1] FULLTEXT(title, author) 기본 파서 + BOOLEAN MODE ---
+인덱스 생성 시간:
+
+real	0m14.164s
+user	0m0.004s
+sys	0m0.003s
+  검색 1페이지
+  raw(ms):  21.3 21.3 19.8 20.6 19.9 20.1 21.2 21.6 21.8 21.9
+  n=10  min=19.800  p50=21.200  p95=21.900  max=21.900  avg=20.950
+  count 쿼리 
+  raw(ms):           
+awk: cmd. line:3: fatal: division by zero attempted
+  [결과 건수 비교] LIKE:
+14291
+  [결과 건수 비교] FULLTEXT:
+14291
+  [실행계획]
+EXPLAIN
+-> Limit: 20 row(s)  (cost=1.1 rows=1) (actual time=21.1..21.2 rows=20 loops=1)
+    -> Sort row IDs: b.created_at DESC, limit input to 20 row(s) per chunk  (cost=1.1 rows=1) (actual time=21.1..21.2 rows=20 loops=1)
+        -> Filter: (match b.title,b.author against ('Garden' in boolean mode))  (cost=1.1 rows=1) (actual time=1.5..20 rows=14291 loops=1)
+            -> Full-text index search on b using ft_book_default (title='Garden')  (cost=1.1 rows=1) (actual time=1.5..19.3 rows=14291 loops=1)
+
+
+  [부분어 매칭 검증] 'Gard' (단어 일부) 로 검색 시:
+    LIKE 결과수:
+14291
+    FULLTEXT 결과수:
+0
+    FULLTEXT 접두어(Gard*) 결과수:
+14291
+
+  [한글 검색 검증] 한글 도서 제목이 들어오면?
+    LIKE '%개츠비%':
+2
+    FULLTEXT 기본파서 '개츠비':
+1
+검색벤치완료

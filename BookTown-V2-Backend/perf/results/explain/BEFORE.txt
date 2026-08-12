@@ -1,0 +1,279 @@
+MySQL: 8.0.46-0ubuntu0.22.04.3
+측정일시: Wed Aug 12 01:30:51 UTC 2026 UTC
+innodb_buffer_pool_size=512M, 데이터: book 200,000 / quiz_submission 2,000,000 / summary_job 1,000,000
+
+############ A1: 퀴즈이력 1페이지 (HEAVY user_id=7, 보유 10,050건) ############
+--- SQL ---
+SELECT qs.id, qs.correct_count, qs.quiz_id, qs.score, qs.submitted_at, qs.total_count, qs.user_id FROM quiz_submission qs WHERE qs.user_id=7 ORDER BY qs.submitted_at DESC LIMIT 20 OFFSET 0
+--- warm-up x2 ---
+--- EXPLAIN ---
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	qs	NULL	ref	idx_quiz_submission_user_id	idx_quiz_submission_user_id	8	const	17580	100.00	Using filesort
+--- EXPLAIN ANALYZE (3회) ---
+EXPLAIN
+-> Limit: 20 row(s)  (cost=12661 rows=20) (actual time=14..14 rows=20 loops=1)
+    -> Sort: qs.submitted_at DESC, limit input to 20 row(s) per chunk  (cost=12661 rows=17580) (actual time=14..14 rows=20 loops=1)
+        -> Index lookup on qs using idx_quiz_submission_user_id (user_id=7)  (cost=12661 rows=17580) (actual time=2.39..13.4 rows=10050 loops=1)
+
+   .....
+EXPLAIN
+-> Limit: 20 row(s)  (cost=12661 rows=20) (actual time=13.5..13.5 rows=20 loops=1)
+    -> Sort: qs.submitted_at DESC, limit input to 20 row(s) per chunk  (cost=12661 rows=17580) (actual time=13.5..13.5 rows=20 loops=1)
+        -> Index lookup on qs using idx_quiz_submission_user_id (user_id=7)  (cost=12661 rows=17580) (actual time=2.23..13 rows=10050 loops=1)
+
+   .....
+EXPLAIN
+-> Limit: 20 row(s)  (cost=12661 rows=20) (actual time=13.6..13.6 rows=20 loops=1)
+    -> Sort: qs.submitted_at DESC, limit input to 20 row(s) per chunk  (cost=12661 rows=17580) (actual time=13.6..13.6 rows=20 loops=1)
+        -> Index lookup on qs using idx_quiz_submission_user_id (user_id=7)  (cost=12661 rows=17580) (actual time=2.3..13 rows=10050 loops=1)
+
+   .....
+
+############ A2: 퀴즈이력 1페이지 (LIGHT user_id=5000, 보유 50건) ############
+--- SQL ---
+SELECT qs.id, qs.correct_count, qs.quiz_id, qs.score, qs.submitted_at, qs.total_count, qs.user_id FROM quiz_submission qs WHERE qs.user_id=5000 ORDER BY qs.submitted_at DESC LIMIT 20 OFFSET 0
+--- warm-up x2 ---
+--- EXPLAIN ---
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	qs	NULL	ref	idx_quiz_submission_user_id	idx_quiz_submission_user_id	8	const	50	100.00	Using filesort
+--- EXPLAIN ANALYZE (3회) ---
+EXPLAIN
+-> Limit: 20 row(s)  (cost=35.8 rows=20) (actual time=0.127..0.128 rows=20 loops=1)
+    -> Sort: qs.submitted_at DESC, limit input to 20 row(s) per chunk  (cost=35.8 rows=50) (actual time=0.127..0.127 rows=20 loops=1)
+        -> Index lookup on qs using idx_quiz_submission_user_id (user_id=5000)  (cost=35.8 rows=50) (actual time=0.11..0.114 rows=50 loops=1)
+
+   .....
+EXPLAIN
+-> Limit: 20 row(s)  (cost=35.8 rows=20) (actual time=0.148..0.149 rows=20 loops=1)
+    -> Sort: qs.submitted_at DESC, limit input to 20 row(s) per chunk  (cost=35.8 rows=50) (actual time=0.148..0.148 rows=20 loops=1)
+        -> Index lookup on qs using idx_quiz_submission_user_id (user_id=5000)  (cost=35.8 rows=50) (actual time=0.13..0.134 rows=50 loops=1)
+
+   .....
+EXPLAIN
+-> Limit: 20 row(s)  (cost=35.8 rows=20) (actual time=0.176..0.178 rows=20 loops=1)
+    -> Sort: qs.submitted_at DESC, limit input to 20 row(s) per chunk  (cost=35.8 rows=50) (actual time=0.175..0.176 rows=20 loops=1)
+        -> Index lookup on qs using idx_quiz_submission_user_id (user_id=5000)  (cost=35.8 rows=50) (actual time=0.151..0.157 rows=50 loops=1)
+
+   .....
+
+############ A3: 퀴즈이력 count 쿼리 (Page 반환 시 Spring Data 가 함께 실행, HEAVY) ############
+--- SQL ---
+SELECT COUNT(qs.id) FROM quiz_submission qs WHERE qs.user_id=7
+--- warm-up x2 ---
+--- EXPLAIN ---
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	qs	NULL	ref	idx_quiz_submission_user_id	idx_quiz_submission_user_id	8	const	17580	100.00	Using index
+--- EXPLAIN ANALYZE (3회) ---
+EXPLAIN
+-> Aggregate: count(qs.id)  (cost=3551 rows=1) (actual time=1.16..1.16 rows=1 loops=1)
+    -> Covering index lookup on qs using idx_quiz_submission_user_id (user_id=7)  (cost=1793 rows=17580) (actual time=0.0984..0.899 rows=10050 loops=1)
+
+   .....
+EXPLAIN
+-> Aggregate: count(qs.id)  (cost=3551 rows=1) (actual time=1.15..1.15 rows=1 loops=1)
+    -> Covering index lookup on qs using idx_quiz_submission_user_id (user_id=7)  (cost=1793 rows=17580) (actual time=0.094..0.874 rows=10050 loops=1)
+
+   .....
+EXPLAIN
+-> Aggregate: count(qs.id)  (cost=3551 rows=1) (actual time=1.18..1.18 rows=1 loops=1)
+    -> Covering index lookup on qs using idx_quiz_submission_user_id (user_id=7)  (cost=1793 rows=17580) (actual time=0.0989..0.875 rows=10050 loops=1)
+
+   .....
+
+############ A4: 퀴즈이력 깊은 offset (HEAVY user_id=7, OFFSET 5000) ############
+--- SQL ---
+SELECT qs.id, qs.correct_count, qs.quiz_id, qs.score, qs.submitted_at, qs.total_count, qs.user_id FROM quiz_submission qs WHERE qs.user_id=7 ORDER BY qs.submitted_at DESC LIMIT 20 OFFSET 5000
+--- warm-up x2 ---
+--- EXPLAIN ---
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	qs	NULL	ref	idx_quiz_submission_user_id	idx_quiz_submission_user_id	8	const	17580	100.00	Using filesort
+--- EXPLAIN ANALYZE (3회) ---
+EXPLAIN
+-> Limit/Offset: 20/5000 row(s)  (cost=12577 rows=20) (actual time=157..157 rows=20 loops=1)
+    -> Sort: qs.submitted_at DESC, limit input to 5020 row(s) per chunk  (cost=12577 rows=17580) (actual time=157..157 rows=5020 loops=1)
+        -> Index lookup on qs using idx_quiz_submission_user_id (user_id=7)  (cost=12577 rows=17580) (actual time=21.8..155 rows=10050 loops=1)
+
+   .....
+EXPLAIN
+-> Limit/Offset: 20/5000 row(s)  (cost=12577 rows=20) (actual time=14.3..14.3 rows=20 loops=1)
+    -> Sort: qs.submitted_at DESC, limit input to 5020 row(s) per chunk  (cost=12577 rows=17580) (actual time=14..14.2 rows=5020 loops=1)
+        -> Index lookup on qs using idx_quiz_submission_user_id (user_id=7)  (cost=12577 rows=17580) (actual time=2.05..12.7 rows=10050 loops=1)
+
+   .....
+EXPLAIN
+-> Limit/Offset: 20/5000 row(s)  (cost=12577 rows=20) (actual time=15.8..15.8 rows=20 loops=1)
+    -> Sort: qs.submitted_at DESC, limit input to 5020 row(s) per chunk  (cost=12577 rows=17580) (actual time=15.5..15.7 rows=5020 loops=1)
+        -> Index lookup on qs using idx_quiz_submission_user_id (user_id=7)  (cost=12577 rows=17580) (actual time=1.83..13.2 rows=10050 loops=1)
+
+   .....
+
+완료
+############ B1: 요약 일일 생성횟수 rate-limit (HEAVY user_id=7, 보유 5,025건) ############
+--- SQL ---
+SELECT COUNT(sj.id) FROM summary_job sj WHERE sj.user_id=7 AND sj.created_at>(NOW() - INTERVAL 1 DAY)
+--- warm-up x2 ---
+--- EXPLAIN ---
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	sj	NULL	ref	idx_summary_job_user_book	idx_summary_job_user_book	8	const	9318	33.33	Using where
+--- EXPLAIN ANALYZE (3회) ---
+EXPLAIN
+-> Aggregate: count(sj.id)  (cost=6415 rows=1) (actual time=7.66..7.66 rows=1 loops=1)
+    -> Filter: (sj.created_at > <cache>((now() - interval 1 day)))  (cost=6105 rows=3106) (actual time=0.704..7.65 rows=16 loops=1)
+        -> Index lookup on sj using idx_summary_job_user_book (user_id=7)  (cost=6105 rows=9318) (actual time=0.695..7.48 rows=5025 loops=1)
+
+   .....
+EXPLAIN
+-> Aggregate: count(sj.id)  (cost=6415 rows=1) (actual time=7.3..7.3 rows=1 loops=1)
+    -> Filter: (sj.created_at > <cache>((now() - interval 1 day)))  (cost=6105 rows=3106) (actual time=0.687..7.3 rows=16 loops=1)
+        -> Index lookup on sj using idx_summary_job_user_book (user_id=7)  (cost=6105 rows=9318) (actual time=0.679..7.13 rows=5025 loops=1)
+
+   .....
+EXPLAIN
+-> Aggregate: count(sj.id)  (cost=6415 rows=1) (actual time=7.41..7.41 rows=1 loops=1)
+    -> Filter: (sj.created_at > <cache>((now() - interval 1 day)))  (cost=6105 rows=3106) (actual time=0.741..7.4 rows=16 loops=1)
+        -> Index lookup on sj using idx_summary_job_user_book (user_id=7)  (cost=6105 rows=9318) (actual time=0.732..7.22 rows=5025 loops=1)
+
+   .....
+
+############ B2: 요약 일일 생성횟수 rate-limit (LIGHT user_id=5000, 보유 25건) ############
+--- SQL ---
+SELECT COUNT(sj.id) FROM summary_job sj WHERE sj.user_id=5000 AND sj.created_at>(NOW() - INTERVAL 1 DAY)
+--- warm-up x2 ---
+--- EXPLAIN ---
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	sj	NULL	ref	idx_summary_job_user_book	idx_summary_job_user_book	8	const	25	33.33	Using where
+--- EXPLAIN ANALYZE (3회) ---
+EXPLAIN
+-> Aggregate: count(sj.id)  (cost=17.1 rows=1) (actual time=0.0988..0.0989 rows=1 loops=1)
+    -> Filter: (sj.created_at > <cache>((now() - interval 1 day)))  (cost=16.3 rows=8.33) (actual time=0.0978..0.0978 rows=0 loops=1)
+        -> Index lookup on sj using idx_summary_job_user_book (user_id=5000)  (cost=16.3 rows=25) (actual time=0.0717..0.0897 rows=25 loops=1)
+
+   .....
+EXPLAIN
+-> Aggregate: count(sj.id)  (cost=17.1 rows=1) (actual time=0.0789..0.079 rows=1 loops=1)
+    -> Filter: (sj.created_at > <cache>((now() - interval 1 day)))  (cost=16.3 rows=8.33) (actual time=0.0782..0.0782 rows=0 loops=1)
+        -> Index lookup on sj using idx_summary_job_user_book (user_id=5000)  (cost=16.3 rows=25) (actual time=0.0528..0.0707 rows=25 loops=1)
+
+   .....
+EXPLAIN
+-> Aggregate: count(sj.id)  (cost=17.1 rows=1) (actual time=0.129..0.129 rows=1 loops=1)
+    -> Filter: (sj.created_at > <cache>((now() - interval 1 day)))  (cost=16.3 rows=8.33) (actual time=0.128..0.128 rows=0 loops=1)
+        -> Index lookup on sj using idx_summary_job_user_book (user_id=5000)  (cost=16.3 rows=25) (actual time=0.0989..0.117 rows=25 loops=1)
+
+   .....
+
+############ B3: 중복 Job 방지 exists (참고 - 기존 idx_summary_job_user_book 사용 확인) ############
+--- SQL ---
+SELECT sj.id FROM summary_job sj WHERE sj.user_id=7 AND sj.book_id=12345 AND sj.status IN ('QUEUED','PROCESSING') LIMIT 1
+--- warm-up x2 ---
+--- EXPLAIN ---
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	sj	NULL	ref	idx_summary_job_user_book,idx_summary_job_status,idx_summary_job_book_id	idx_summary_job_user_book	16	const,const	1	5.00	Using where
+--- EXPLAIN ANALYZE (3회) ---
+EXPLAIN
+-> Limit: 1 row(s)  (cost=0.624 rows=0.05) (actual time=0.0118..0.0118 rows=0 loops=1)
+    -> Filter: (sj.`status` in ('QUEUED','PROCESSING'))  (cost=0.624 rows=0.05) (actual time=0.0113..0.0113 rows=0 loops=1)
+        -> Index lookup on sj using idx_summary_job_user_book (user_id=7, book_id=12345)  (cost=0.624 rows=1) (actual time=0.0107..0.0107 rows=0 loops=1)
+
+   .....
+EXPLAIN
+-> Limit: 1 row(s)  (cost=0.624 rows=0.05) (actual time=0.00972..0.00972 rows=0 loops=1)
+    -> Filter: (sj.`status` in ('QUEUED','PROCESSING'))  (cost=0.624 rows=0.05) (actual time=0.00938..0.00938 rows=0 loops=1)
+        -> Index lookup on sj using idx_summary_job_user_book (user_id=7, book_id=12345)  (cost=0.624 rows=1) (actual time=0.00878..0.00878 rows=0 loops=1)
+
+   .....
+EXPLAIN
+-> Limit: 1 row(s)  (cost=0.624 rows=0.05) (actual time=0.00844..0.00844 rows=0 loops=1)
+    -> Filter: (sj.`status` in ('QUEUED','PROCESSING'))  (cost=0.624 rows=0.05) (actual time=0.00819..0.00819 rows=0 loops=1)
+        -> Index lookup on sj using idx_summary_job_user_book (user_id=7, book_id=12345)  (cost=0.624 rows=1) (actual time=0.00781..0.00781 rows=0 loops=1)
+
+   .....
+
+############ C1: 도서 검색 1페이지 (title/author 선행 와일드카드 LIKE + OR) ############
+--- SQL ---
+SELECT b.id, b.title, b.author, b.genre, b.country, b.bookmark_count, b.has_content, b.created_at, b.cover_image_url FROM book b WHERE b.title LIKE '%Garden%' OR b.author LIKE '%Garden%' ORDER BY b.created_at DESC LIMIT 20 OFFSET 0
+--- warm-up x2 ---
+--- EXPLAIN ---
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	b	NULL	ALL	NULL	NULL	NULL	NULL	197336	20.99	Using where; Using filesort
+--- EXPLAIN ANALYZE (3회) ---
+EXPLAIN
+-> Limit: 20 row(s)  (cost=20415 rows=20) (actual time=86.1..86.1 rows=20 loops=1)
+    -> Sort: b.created_at DESC, limit input to 20 row(s) per chunk  (cost=20415 rows=197336) (actual time=86.1..86.1 rows=20 loops=1)
+        -> Filter: ((b.title like '%Garden%') or (b.author like '%Garden%'))  (cost=20415 rows=197336) (actual time=0.0393..84.9 rows=14291 loops=1)
+            -> Table scan on b  (cost=20415 rows=197336) (actual time=0.0367..47.6 rows=200000 loops=1)
+
+   .....
+EXPLAIN
+-> Limit: 20 row(s)  (cost=20415 rows=20) (actual time=86.7..86.7 rows=20 loops=1)
+    -> Sort: b.created_at DESC, limit input to 20 row(s) per chunk  (cost=20415 rows=197336) (actual time=86.7..86.7 rows=20 loops=1)
+        -> Filter: ((b.title like '%Garden%') or (b.author like '%Garden%'))  (cost=20415 rows=197336) (actual time=0.037..85.5 rows=14291 loops=1)
+            -> Table scan on b  (cost=20415 rows=197336) (actual time=0.0344..47.5 rows=200000 loops=1)
+
+   .....
+EXPLAIN
+-> Limit: 20 row(s)  (cost=20415 rows=20) (actual time=89..89 rows=20 loops=1)
+    -> Sort: b.created_at DESC, limit input to 20 row(s) per chunk  (cost=20415 rows=197336) (actual time=89..89 rows=20 loops=1)
+        -> Filter: ((b.title like '%Garden%') or (b.author like '%Garden%'))  (cost=20415 rows=197336) (actual time=0.0371..87.7 rows=14291 loops=1)
+            -> Table scan on b  (cost=20415 rows=197336) (actual time=0.0348..49.1 rows=200000 loops=1)
+
+   .....
+
+############ C2: 도서 검색 count 쿼리 ############
+--- SQL ---
+SELECT COUNT(b.id) FROM book b WHERE b.title LIKE '%Garden%' OR b.author LIKE '%Garden%'
+--- warm-up x2 ---
+--- EXPLAIN ---
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	b	NULL	ALL	NULL	NULL	NULL	NULL	197336	20.99	Using where
+--- EXPLAIN ANALYZE (3회) ---
+EXPLAIN
+-> Aggregate: count(b.id)  (cost=24556 rows=1) (actual time=64.7..64.7 rows=1 loops=1)
+    -> Filter: ((b.title like '%Garden%') or (b.author like '%Garden%'))  (cost=20415 rows=41412) (actual time=0.0363..64.3 rows=14291 loops=1)
+        -> Table scan on b  (cost=20415 rows=197336) (actual time=0.0336..28 rows=200000 loops=1)
+
+   .....
+EXPLAIN
+-> Aggregate: count(b.id)  (cost=24556 rows=1) (actual time=65.5..65.5 rows=1 loops=1)
+    -> Filter: ((b.title like '%Garden%') or (b.author like '%Garden%'))  (cost=20415 rows=41412) (actual time=0.0576..65 rows=14291 loops=1)
+        -> Table scan on b  (cost=20415 rows=197336) (actual time=0.0545..28.2 rows=200000 loops=1)
+
+   .....
+EXPLAIN
+-> Aggregate: count(b.id)  (cost=24556 rows=1) (actual time=63.9..63.9 rows=1 loops=1)
+    -> Filter: ((b.title like '%Garden%') or (b.author like '%Garden%'))  (cost=20415 rows=41412) (actual time=0.0519..63.5 rows=14291 loops=1)
+        -> Table scan on b  (cost=20415 rows=197336) (actual time=0.0495..27.2 rows=200000 loops=1)
+
+   .....
+
+############ C3: 도서 검색 - 저자명 키워드 ############
+--- SQL ---
+SELECT b.id, b.title, b.author FROM book b WHERE b.title LIKE '%Tolstoy%' OR b.author LIKE '%Tolstoy%' ORDER BY b.created_at DESC LIMIT 20 OFFSET 0
+--- warm-up x2 ---
+--- EXPLAIN ---
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	b	NULL	ALL	NULL	NULL	NULL	NULL	197336	20.99	Using where; Using filesort
+--- EXPLAIN ANALYZE (3회) ---
+EXPLAIN
+-> Limit: 20 row(s)  (cost=20415 rows=20) (actual time=78.5..78.5 rows=20 loops=1)
+    -> Sort: b.created_at DESC, limit input to 20 row(s) per chunk  (cost=20415 rows=197336) (actual time=78.5..78.5 rows=20 loops=1)
+        -> Filter: ((b.title like '%Tolstoy%') or (b.author like '%Tolstoy%'))  (cost=20415 rows=197336) (actual time=0.0418..77.4 rows=15390 loops=1)
+            -> Table scan on b  (cost=20415 rows=197336) (actual time=0.0299..30.6 rows=200000 loops=1)
+
+   .....
+EXPLAIN
+-> Limit: 20 row(s)  (cost=20415 rows=20) (actual time=77.8..77.8 rows=20 loops=1)
+    -> Sort: b.created_at DESC, limit input to 20 row(s) per chunk  (cost=20415 rows=197336) (actual time=77.8..77.8 rows=20 loops=1)
+        -> Filter: ((b.title like '%Tolstoy%') or (b.author like '%Tolstoy%'))  (cost=20415 rows=197336) (actual time=0.0381..76.8 rows=15390 loops=1)
+            -> Table scan on b  (cost=20415 rows=197336) (actual time=0.0268..30.6 rows=200000 loops=1)
+
+   .....
+EXPLAIN
+-> Limit: 20 row(s)  (cost=20415 rows=20) (actual time=78.6..78.6 rows=20 loops=1)
+    -> Sort: b.created_at DESC, limit input to 20 row(s) per chunk  (cost=20415 rows=197336) (actual time=78.6..78.6 rows=20 loops=1)
+        -> Filter: ((b.title like '%Tolstoy%') or (b.author like '%Tolstoy%'))  (cost=20415 rows=197336) (actual time=0.0403..77.5 rows=15390 loops=1)
+            -> Table scan on b  (cost=20415 rows=197336) (actual time=0.0282..30.5 rows=200000 loops=1)
+
+   .....
+
+완료-2

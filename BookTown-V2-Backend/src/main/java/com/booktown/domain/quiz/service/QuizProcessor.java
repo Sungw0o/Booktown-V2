@@ -1,20 +1,8 @@
 package com.booktown.domain.quiz.service;
 
-import com.booktown.domain.book.entity.Chapter;
-import com.booktown.domain.book.repository.BookRepository;
-import com.booktown.domain.book.repository.ChapterRepository;
-import com.booktown.domain.quiz.entity.Question;
-import com.booktown.domain.quiz.entity.QuestionOption;
-import com.booktown.domain.quiz.entity.Quiz;
-import com.booktown.domain.quiz.entity.QuizDifficulty;
-import com.booktown.domain.quiz.entity.QuizJob;
-import com.booktown.domain.quiz.entity.QuizJobStatus;
-import com.booktown.domain.quiz.repository.QuestionOptionRepository;
-import com.booktown.domain.quiz.repository.QuestionRepository;
-import com.booktown.domain.quiz.repository.QuizJobRepository;
-import com.booktown.domain.quiz.repository.QuizRepository;
-import com.booktown.domain.user.entity.User;
-import com.booktown.domain.user.repository.UserRepository;
+import com.booktown.domain.quiz.service.QuizJobTransactionService.ChapterExcerpt;
+import com.booktown.domain.quiz.service.QuizJobTransactionService.GeneratedQuestion;
+import com.booktown.domain.quiz.service.QuizJobTransactionService.QuizJobContext;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -23,11 +11,23 @@ import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
 
-import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * 퀴즈 생성 비동기 처리기.
+ *
+ * <h2>트랜잭션 경계 설계</h2>
+ * <p>이 클래스에는 {@code @Transactional} 이 <b>없다</b>. 의도적이다.
+ * AI 호출이 응답을 기다리는 동안 DB 커넥션을 점유하지 않도록,
+ * DB 작업은 전부 {@link QuizJobTransactionService} 에 위임해 짧은 트랜잭션으로 쪼갠다.
+ *
+ * <pre>
+ *   [짧은 TX] PROCESSING 전이 + 챕터 본문 추출   → 커넥션 반납
+ *   [TX 밖 ] OpenAI 호출 + JSON 파싱             → DB 커넥션 점유 없음
+ *   [짧은 TX] 퀴즈/문항/선택지 저장 + COMPLETED   → 커넥션 반납
+ * </pre>
+ */
 @Slf4j
 @Component
 @RequiredArgsConstructor
@@ -58,68 +58,58 @@ public class QuizProcessor {
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper().findAndRegisterModules();
 
-    private final QuizJobRepository quizJobRepository;
-    private final QuizRepository quizRepository;
-    private final QuestionRepository questionRepository;
-    private final QuestionOptionRepository questionOptionRepository;
-    private final BookRepository bookRepository;
-    private final ChapterRepository chapterRepository;
-    private final UserRepository userRepository;
+    private final QuizJobTransactionService transactionService;
     private final ObjectProvider<ChatClient> chatClientProvider;
 
     @Async("quizProcessingExecutor")
-    @Transactional
     public void process(Long jobId) {
-        QuizJob job = quizJobRepository.findById(jobId).orElseThrow();
-        job.markProcessing();
-        quizJobRepository.save(job);
-
+        // ── 1단계: 짧은 트랜잭션 ──
+        QuizJobContext ctx;
         try {
-            List<Chapter> chapters = chapterRepository.findAllByBookIdOrderByChapterNumberAsc(job.getBook().getId());
-            String context = buildContext(chapters, job.getQuestionCount());
-            String prompt = String.format(QUIZ_PROMPT, context, job.getQuestionCount(), job.getDifficulty().name());
+            ctx = transactionService.startProcessing(jobId);
+        } catch (Exception e) {
+            log.error("QuizJob {} could not start: {}", jobId, e.getMessage(), e);
+            return;
+        }
+
+        // ── 2단계: 트랜잭션 밖 — AI 호출 ──
+        try {
+            String context = buildContext(ctx.chapters(), ctx.questionCount());
+            String prompt = String.format(QUIZ_PROMPT, context, ctx.questionCount(), ctx.difficulty().name());
 
             ChatClient chatClient = requireChatClient();
             String aiResponse = chatClient.prompt().user(prompt).call().content();
             String json = extractJson(aiResponse);
-            List<AiQuestion> aiQuestions = OBJECT_MAPPER.readValue(json, new TypeReference<>() {});
+            List<GeneratedQuestion> questions = OBJECT_MAPPER.readValue(json, new TypeReference<>() {});
 
-            User user = userRepository.findById(job.getUser().getId()).orElseThrow();
-            Quiz quiz = Quiz.create(user, job.getBook(), jobId, job.getDifficulty(), job.getQuestionCount());
-            quizRepository.save(quiz);
-
-            for (int i = 0; i < Math.min(aiQuestions.size(), job.getQuestionCount()); i++) {
-                AiQuestion aq = aiQuestions.get(i);
-                Question question = Question.create(quiz, aq.content(), aq.explanation(), aq.correctOption(), i + 1);
-                questionRepository.save(question);
-
-                List<QuestionOption> opts = new ArrayList<>();
-                for (int j = 0; j < aq.options().size(); j++) {
-                    opts.add(QuestionOption.create(question, aq.options().get(j), j + 1));
-                }
-                questionOptionRepository.saveAll(opts);
-            }
-
-            job.markCompleted(quiz.getId());
-            quizJobRepository.save(job);
-            log.info("QuizJob {} completed: quizId={}", jobId, quiz.getId());
+            // ── 3단계: 짧은 트랜잭션 — 저장 + COMPLETED ──
+            Long quizId = transactionService.saveQuizAndComplete(ctx, questions);
+            log.info("QuizJob {} completed: quizId={}", jobId, quizId);
         } catch (Exception e) {
             log.error("QuizJob {} failed: {}", jobId, e.getMessage(), e);
             boolean retryable = !(e instanceof IllegalArgumentException);
-            job.markFailed(e.getMessage(), retryable);
-            quizJobRepository.save(job);
+            markFailedQuietly(jobId, e.getMessage(), retryable);
         }
     }
 
-    private String buildContext(List<Chapter> chapters, int questionCount) {
+    private void markFailedQuietly(Long jobId, String message, boolean retryable) {
+        try {
+            transactionService.markFailed(jobId, message, retryable);
+        } catch (Exception e) {
+            log.error("QuizJob {} stuck in PROCESSING: failed to persist FAILED state: {}",
+                    jobId, e.getMessage(), e);
+        }
+    }
+
+    private String buildContext(List<ChapterExcerpt> chapters, int questionCount) {
         int maxCharsPerChapter = Math.max(500, 3000 / Math.max(chapters.size(), 1));
         StringBuilder sb = new StringBuilder();
-        for (Chapter ch : chapters) {
-            if (ch.getContent() != null && !ch.getContent().isBlank()) {
-                String excerpt = ch.getContent().length() > maxCharsPerChapter
-                        ? ch.getContent().substring(0, maxCharsPerChapter)
-                        : ch.getContent();
-                sb.append("[").append(ch.getTitle()).append("]\n").append(excerpt).append("\n\n");
+        for (ChapterExcerpt ch : chapters) {
+            if (ch.hasContent()) {
+                String excerpt = ch.content().length() > maxCharsPerChapter
+                        ? ch.content().substring(0, maxCharsPerChapter)
+                        : ch.content();
+                sb.append("[").append(ch.title()).append("]\n").append(excerpt).append("\n\n");
             }
         }
         return sb.toString();
@@ -141,6 +131,4 @@ public class QuizProcessor {
         }
         return response.substring(start, end + 1);
     }
-
-    private record AiQuestion(String content, String explanation, int correctOption, List<String> options) {}
 }

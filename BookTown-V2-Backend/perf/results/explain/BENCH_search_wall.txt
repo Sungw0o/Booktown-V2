@@ -1,0 +1,16 @@
+=== 도서 검색: 단일 세션 내 30회 반복 wall-clock (세션 오버헤드 분산) ===
+※ Spring Data Page 는 [목록 쿼리 + count 쿼리] 2개를 실행하므로 둘 다 측정
+
+[현행 LIKE] (ngram 인덱스 존재하지만 LIKE 는 사용 못 함)
+  LIKE 목록 (Garden, 14291건 매치)                           78.65 ms/query  (30회 총 2360 ms)
+  LIKE count                                            72.23 ms/query  (30회 총 2167 ms)
+  LIKE 목록 (선택도 높은 키워드 Sonata)                           78.46 ms/query  (30회 총 2354 ms)
+
+[ngram FULLTEXT]
+  ngram 목록 (Garden)                                    166.90 ms/query  (30회 총 5007 ms)
+  ngram count                                          146.11 ms/query  (30회 총 4383 ms)
+  ngram 목록 (Sonata)                                    112.62 ms/query  (30회 총 3379 ms)
+
+[베이스라인 참고] 인덱스와 무관한 단순 쿼리
+  SELECT 1                                               0.33 ms/query  (30회 총 10 ms)
+wall완료

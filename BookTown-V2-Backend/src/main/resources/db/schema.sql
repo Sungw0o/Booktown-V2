@@ -105,6 +105,8 @@ CREATE TABLE IF NOT EXISTS summary_job (
     updated_at          DATETIME    NOT NULL,
     PRIMARY KEY (id),
     KEY idx_summary_job_user_book (user_id, book_id),
+    -- 일일 생성 횟수 제한 조회(WHERE user_id=? AND created_at>?) 전용 covering index
+    KEY idx_summary_job_user_created (user_id, created_at),
     KEY idx_summary_job_status (status),
     KEY idx_summary_job_book_id (book_id),
     CONSTRAINT fk_summary_job_user FOREIGN KEY (user_id) REFERENCES users (id),
@@ -124,7 +126,11 @@ CREATE TABLE IF NOT EXISTS illustration_job (
     created_at               DATETIME     NOT NULL,
     updated_at               DATETIME     NOT NULL,
     PRIMARY KEY (id),
+    -- user_id 단일 인덱스는 existsByUserIdAndSceneIdAndStatusIn 의
+    -- index_merge intersect(scene_id, user_id) 에 실제로 사용되므로 유지한다.
     KEY idx_illustration_job_user_id (user_id),
+    -- 일일 생성 횟수 제한 조회(WHERE user_id=? AND created_at>?) 전용 covering index
+    KEY idx_illustration_job_user_created (user_id, created_at),
     KEY idx_illustration_job_scene_id (scene_id),
     CONSTRAINT fk_illustration_job_user FOREIGN KEY (user_id) REFERENCES users (id),
     CONSTRAINT fk_illustration_job_scene FOREIGN KEY (scene_id) REFERENCES scene (id)
@@ -199,7 +205,9 @@ CREATE TABLE IF NOT EXISTS quiz_submission (
     total_count   INT      NOT NULL,
     submitted_at  DATETIME NOT NULL,
     PRIMARY KEY (id),
-    KEY idx_quiz_submission_user_id (user_id),
+    -- 퀴즈 이력 조회(WHERE user_id=? ORDER BY submitted_at DESC LIMIT ?) 대응 복합 인덱스.
+    -- 기존 idx_quiz_submission_user_id (user_id) 는 이 인덱스의 좌측 프리픽스라 중복이므로 제거했다.
+    KEY idx_quiz_submission_user_submitted (user_id, submitted_at),
     KEY idx_quiz_submission_quiz_id (quiz_id),
     CONSTRAINT fk_quiz_submission_quiz FOREIGN KEY (quiz_id) REFERENCES quiz (id),
     CONSTRAINT fk_quiz_submission_user FOREIGN KEY (user_id) REFERENCES users (id)

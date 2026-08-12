@@ -1,0 +1,21 @@
+{
+  "target": "GET /books",
+  "base_url": "http://host.docker.internal:8080/api/v1",
+  "vus": 25,
+  "duration": "1m",
+  "total_requests": 2900,
+  "requests_per_sec": 48.02998766258096,
+  "fail_rate": 0,
+  "checks_pass_rate": 1,
+  "latency_ms": {
+    "avg": 18.966116086896548,
+    "min": 9.350668,
+    "med": 16.985342,
+    "p90": 25.961406199999995,
+    "p95": 32.693141999999966,
+    "p99": 57.050805729999965,
+    "max": 77.933765
+  },
+  "thresholds_passed": true,
+  "generated_at": "2026-07-09T04:21:26.288Z"
+}

@@ -1,26 +1,44 @@
 package com.booktown.domain.summary.service;
 
-import com.booktown.domain.book.entity.Book;
-import com.booktown.domain.book.entity.Chapter;
-import com.booktown.domain.book.repository.BookRepository;
-import com.booktown.domain.book.repository.ChapterRepository;
 import com.booktown.domain.summary.document.SummaryDocument;
-import com.booktown.domain.summary.entity.SummaryJob;
 import com.booktown.domain.summary.repository.SummaryDocumentRepository;
-import com.booktown.domain.summary.repository.SummaryJobRepository;
+import com.booktown.domain.summary.service.SummaryJobTransactionService.SummaryJobContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+/**
+ * 요약 생성 비동기 처리기.
+ *
+ * <h2>트랜잭션 경계 설계</h2>
+ * <p>이 클래스에는 {@code @Transactional} 이 <b>없다</b>. 의도적이다.
+ *
+ * <p>이전 구조는 {@code @Async + @Transactional} 이 process() 전체를 감싸고 있어서
+ * 아래처럼 동작했다.
+ * <pre>
+ *   트랜잭션 시작 → DB 커넥션 획득 → OpenAI 호출(수 초~수십 초 대기) → DB 저장 → 트랜잭션 종료
+ *                     └────────── 이 구간 내내 커넥션 점유 ──────────┘
+ * </pre>
+ * AI 워커 스레드 수가 커넥션 풀 크기에 가까워지면 일반 조회 API 가 커넥션을 얻지 못한다.
+ *
+ * <p>변경 후 구조:
+ * <pre>
+ *   [짧은 TX] PROCESSING 저장 + 필요한 데이터를 값으로 추출  → 커넥션 반납
+ *   [TX 밖 ] Chroma 인덱싱 / OpenAI 호출 / MongoDB 저장     → DB 커넥션 점유 없음
+ *   [짧은 TX] COMPLETED 또는 FAILED 전이                     → 커넥션 반납
+ * </pre>
+ *
+ * <p>트랜잭션 메서드를 같은 클래스에 두면 self-invocation 이 되어 프록시를 거치지 않으므로,
+ * DB 작업은 모두 별도 빈인 {@link SummaryJobTransactionService} 에 위임한다.
+ */
 @Slf4j
 @Component
 @RequiredArgsConstructor
@@ -68,58 +86,69 @@ public class SummaryProcessor {
     private static final int MAX_CHAPTER_EXCERPT_CHARS = 2_400;
     private static final Pattern HANGUL_PATTERN = Pattern.compile("[가-힣]");
 
-    private final SummaryJobRepository summaryJobRepository;
+    private final SummaryJobTransactionService transactionService;
     private final SummaryDocumentRepository summaryDocumentRepository;
-    private final BookRepository bookRepository;
-    private final ChapterRepository chapterRepository;
     private final ObjectProvider<RagService> ragServiceProvider;
     private final ObjectProvider<ChatClient> chatClientProvider;
 
     @Async("summaryProcessingExecutor")
-    @Transactional
     public void process(Long jobId, boolean isRegeneration) {
-        SummaryJob job = summaryJobRepository.findById(jobId).orElseThrow();
-        job.markProcessing();
-        summaryJobRepository.save(job);
-
+        // ── 1단계: 짧은 트랜잭션 — PROCESSING 전이 + 필요한 데이터 값으로 추출 ──
+        SummaryJobContext ctx;
         try {
-            Long bookId = job.getBook().getId();
-            Long userId = job.getUser().getId();
+            ctx = transactionService.startProcessing(jobId);
+        } catch (Exception e) {
+            // Job 자체를 못 읽은 상황이므로 상태를 바꿀 대상도 없다.
+            log.error("SummaryJob {} could not start: {}", jobId, e.getMessage(), e);
+            return;
+        }
 
-            List<Chapter> chapters = chapterRepository.findAllByBookIdOrderByChapterNumberAsc(bookId);
-            String context = buildRagContextIfAvailable(bookId, chapters);
+        // ── 2단계: 트랜잭션 밖 — 외부 I/O (DB 커넥션 점유 없음) ──
+        try {
+            String context = buildRagContextIfAvailable(ctx.bookId(), ctx.chapters());
             if (context.isBlank()) {
-                context = buildContext(chapters);
+                context = buildContext(ctx.chapters());
             }
             if (context.isBlank()) {
                 throw new IllegalStateException("Book content is empty.");
             }
 
             ChatClient chatClient = requireChatClient();
-            Book book = translateBookMetadataIfNeeded(job.getBook(), chatClient);
+            BookMetadata metadata = translateBookMetadataIfNeeded(ctx, chatClient);
+
             String summaryContent = chatClient.prompt()
-                    .user(SUMMARY_PROMPT.formatted(
-                            book.getTitle(),
-                            book.getAuthor(),
-                            context
-                    ))
+                    .user(SUMMARY_PROMPT.formatted(metadata.title(), metadata.author(), context))
                     .call()
                     .content();
 
-            SummaryDocument doc = SummaryDocument.create(bookId, userId, jobId, summaryContent, isRegeneration);
-            summaryDocumentRepository.save(doc);
+            // MongoDB 저장 — RDBMS 커넥션과 무관하다.
+            SummaryDocument doc = SummaryDocument.create(
+                    ctx.bookId(), ctx.userId(), jobId, summaryContent, isRegeneration);
+            SummaryDocument saved = summaryDocumentRepository.save(doc);
 
-            job.markCompleted(doc.getId());
-            summaryJobRepository.save(job);
-            log.info("SummaryJob {} completed: summaryId={}", jobId, doc.getId());
+            // ── 3단계: 짧은 트랜잭션 — COMPLETED 전이 ──
+            transactionService.markCompleted(jobId, saved.getId());
+            log.info("SummaryJob {} completed: summaryId={}", jobId, saved.getId());
         } catch (Exception e) {
             log.error("SummaryJob {} failed: {}", jobId, e.getMessage(), e);
-            job.markFailed(e.getMessage(), isAiServiceError(e));
-            summaryJobRepository.save(job);
+            markFailedQuietly(jobId, e);
         }
     }
 
-    private String buildRagContextIfAvailable(Long bookId, List<Chapter> chapters) {
+    /**
+     * FAILED 전이는 별도 트랜잭션이며, 여기서 또 예외가 나면 Job 이 PROCESSING 에
+     * 영원히 머무르게 된다. 그 경우를 로그로 남겨 추적 가능하게 한다.
+     */
+    private void markFailedQuietly(Long jobId, Exception cause) {
+        try {
+            transactionService.markFailed(jobId, cause.getMessage(), isAiServiceError(cause));
+        } catch (Exception e) {
+            log.error("SummaryJob {} stuck in PROCESSING: failed to persist FAILED state: {}",
+                    jobId, e.getMessage(), e);
+        }
+    }
+
+    private String buildRagContextIfAvailable(Long bookId, List<ChapterContent> chapters) {
         RagService ragService = ragServiceProvider.getIfAvailable();
         if (ragService == null) {
             return "";
@@ -138,17 +167,17 @@ public class SummaryProcessor {
         }
     }
 
-    private String buildContext(List<Chapter> chapters) {
+    private String buildContext(List<ChapterContent> chapters) {
         StringBuilder context = new StringBuilder();
-        for (Chapter chapter : chapters) {
-            if (chapter.getContent() == null || chapter.getContent().isBlank()) {
+        for (ChapterContent chapter : chapters) {
+            if (!chapter.hasContent()) {
                 continue;
             }
 
-            String excerpt = excerpt(chapter.getContent(), MAX_CHAPTER_EXCERPT_CHARS);
+            String excerpt = excerpt(chapter.content(), MAX_CHAPTER_EXCERPT_CHARS);
             String block = "[%d. %s]%n%s%n%n".formatted(
-                    chapter.getChapterNumber(),
-                    chapter.getTitle(),
+                    chapter.chapterNumber(),
+                    chapter.title(),
                     excerpt
             );
             if (context.length() + block.length() > MAX_CONTEXT_CHARS) {
@@ -159,29 +188,41 @@ public class SummaryProcessor {
         return context.toString().trim();
     }
 
-    private Book translateBookMetadataIfNeeded(Book book, ChatClient chatClient) {
-        if (hasKorean(book.getTitle()) && hasKorean(book.getDescription())) {
-            return book;
+    /**
+     * AI 호출(트랜잭션 밖)로 메타데이터를 번역하고, DB 반영만 짧은 트랜잭션으로 위임한다.
+     * 번역 실패는 요약 생성 실패로 취급하지 않는다(기존 동작 유지).
+     */
+    private BookMetadata translateBookMetadataIfNeeded(SummaryJobContext ctx, ChatClient chatClient) {
+        BookMetadata original = new BookMetadata(ctx.title(), ctx.author(), ctx.description());
+        if (hasKorean(ctx.title()) && hasKorean(ctx.description())) {
+            return original;
         }
 
         try {
             String response = chatClient.prompt()
                     .user(METADATA_PROMPT.formatted(
-                            fallback(book.getTitle(), "제목 미상"),
-                            fallback(book.getAuthor(), "저자 미상"),
-                            fallback(book.getDescription(), "소개 없음")
+                            fallback(ctx.title(), "제목 미상"),
+                            fallback(ctx.author(), "저자 미상"),
+                            fallback(ctx.description(), "소개 없음")
                     ))
                     .call()
                     .content();
 
-            String title = extractLineValue(response, "TITLE").orElse(book.getTitle());
-            String author = extractLineValue(response, "AUTHOR").orElse(book.getAuthor());
-            String description = extractLineValue(response, "INTRO").orElse(book.getDescription());
-            book.updateCatalogMetadata(blankToNull(title), blankToNull(author), blankToNull(description));
-            return bookRepository.save(book);
+            String title = extractLineValue(response, "TITLE").orElse(ctx.title());
+            String author = extractLineValue(response, "AUTHOR").orElse(ctx.author());
+            String description = extractLineValue(response, "INTRO").orElse(ctx.description());
+
+            transactionService.updateBookMetadata(
+                    ctx.bookId(), blankToNull(title), blankToNull(author), blankToNull(description));
+
+            return new BookMetadata(
+                    title == null || title.isBlank() ? ctx.title() : title,
+                    author == null || author.isBlank() ? ctx.author() : author,
+                    description
+            );
         } catch (Exception e) {
-            log.warn("SummaryJob metadata translation skipped for bookId={}: {}", book.getId(), e.getMessage());
-            return book;
+            log.warn("SummaryJob metadata translation skipped for bookId={}: {}", ctx.bookId(), e.getMessage());
+            return original;
         }
     }
 
@@ -234,4 +275,6 @@ public class SummaryProcessor {
         }
         return chatClient;
     }
+
+    private record BookMetadata(String title, String author, String description) {}
 }
