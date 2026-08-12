@@ -23,7 +23,10 @@ import java.time.LocalDateTime;
 @Table(
         name = "quiz_submission",
         indexes = {
-                @Index(name = "idx_quiz_submission_user_id", columnList = "user_id"),
+                @Index(
+                        name = "idx_quiz_submission_user_submitted_at",
+                        columnList = "user_id, submitted_at DESC"
+                ),
                 @Index(name = "idx_quiz_submission_quiz_id", columnList = "quiz_id")
         }
 )

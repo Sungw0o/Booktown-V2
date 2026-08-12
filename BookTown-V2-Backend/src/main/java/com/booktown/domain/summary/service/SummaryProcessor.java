@@ -1,20 +1,14 @@
 package com.booktown.domain.summary.service;
 
-import com.booktown.domain.book.entity.Book;
 import com.booktown.domain.book.entity.Chapter;
-import com.booktown.domain.book.repository.BookRepository;
-import com.booktown.domain.book.repository.ChapterRepository;
 import com.booktown.domain.summary.document.SummaryDocument;
-import com.booktown.domain.summary.entity.SummaryJob;
 import com.booktown.domain.summary.repository.SummaryDocumentRepository;
-import com.booktown.domain.summary.repository.SummaryJobRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Optional;
@@ -68,54 +62,45 @@ public class SummaryProcessor {
     private static final int MAX_CHAPTER_EXCERPT_CHARS = 2_400;
     private static final Pattern HANGUL_PATTERN = Pattern.compile("[가-힣]");
 
-    private final SummaryJobRepository summaryJobRepository;
     private final SummaryDocumentRepository summaryDocumentRepository;
-    private final BookRepository bookRepository;
-    private final ChapterRepository chapterRepository;
+    private final SummaryJobTransactionService transactionService;
     private final ObjectProvider<RagService> ragServiceProvider;
     private final ObjectProvider<ChatClient> chatClientProvider;
 
     @Async("summaryProcessingExecutor")
-    @Transactional
     public void process(Long jobId, boolean isRegeneration) {
-        SummaryJob job = summaryJobRepository.findById(jobId).orElseThrow();
-        job.markProcessing();
-        summaryJobRepository.save(job);
+        SummaryJobTransactionService.SummaryWork work = transactionService.updateJobToProcessing(jobId);
 
         try {
-            Long bookId = job.getBook().getId();
-            Long userId = job.getUser().getId();
-
-            List<Chapter> chapters = chapterRepository.findAllByBookIdOrderByChapterNumberAsc(bookId);
-            String context = buildRagContextIfAvailable(bookId, chapters);
+            String context = buildRagContextIfAvailable(work.bookId(), work.chapters());
             if (context.isBlank()) {
-                context = buildContext(chapters);
+                context = buildContext(work.chapters());
             }
             if (context.isBlank()) {
                 throw new IllegalStateException("Book content is empty.");
             }
 
             ChatClient chatClient = requireChatClient();
-            Book book = translateBookMetadataIfNeeded(job.getBook(), chatClient);
+            BookMetadata metadata = translateBookMetadataIfNeeded(work, chatClient);
             String summaryContent = chatClient.prompt()
                     .user(SUMMARY_PROMPT.formatted(
-                            book.getTitle(),
-                            book.getAuthor(),
+                            metadata.title(),
+                            metadata.author(),
                             context
                     ))
                     .call()
                     .content();
 
-            SummaryDocument doc = SummaryDocument.create(bookId, userId, jobId, summaryContent, isRegeneration);
+            SummaryDocument doc = SummaryDocument.create(
+                    work.bookId(), work.userId(), jobId, summaryContent, isRegeneration
+            );
             summaryDocumentRepository.save(doc);
 
-            job.markCompleted(doc.getId());
-            summaryJobRepository.save(job);
+            transactionService.updateJobToCompleted(jobId, doc.getId());
             log.info("SummaryJob {} completed: summaryId={}", jobId, doc.getId());
         } catch (Exception e) {
             log.error("SummaryJob {} failed: {}", jobId, e.getMessage(), e);
-            job.markFailed(e.getMessage(), isAiServiceError(e));
-            summaryJobRepository.save(job);
+            transactionService.updateJobToFailed(jobId, e.getMessage(), isAiServiceError(e));
         }
     }
 
@@ -159,29 +144,37 @@ public class SummaryProcessor {
         return context.toString().trim();
     }
 
-    private Book translateBookMetadataIfNeeded(Book book, ChatClient chatClient) {
-        if (hasKorean(book.getTitle()) && hasKorean(book.getDescription())) {
-            return book;
+    private BookMetadata translateBookMetadataIfNeeded(
+            SummaryJobTransactionService.SummaryWork work,
+            ChatClient chatClient
+    ) {
+        BookMetadata current = new BookMetadata(work.title(), work.author(), work.description());
+        if (hasKorean(current.title()) && hasKorean(current.description())) {
+            return current;
         }
 
         try {
             String response = chatClient.prompt()
                     .user(METADATA_PROMPT.formatted(
-                            fallback(book.getTitle(), "제목 미상"),
-                            fallback(book.getAuthor(), "저자 미상"),
-                            fallback(book.getDescription(), "소개 없음")
+                            fallback(current.title(), "제목 미상"),
+                            fallback(current.author(), "저자 미상"),
+                            fallback(current.description(), "소개 없음")
                     ))
                     .call()
                     .content();
 
-            String title = extractLineValue(response, "TITLE").orElse(book.getTitle());
-            String author = extractLineValue(response, "AUTHOR").orElse(book.getAuthor());
-            String description = extractLineValue(response, "INTRO").orElse(book.getDescription());
-            book.updateCatalogMetadata(blankToNull(title), blankToNull(author), blankToNull(description));
-            return bookRepository.save(book);
+            BookMetadata translated = new BookMetadata(
+                    blankToNull(extractLineValue(response, "TITLE").orElse(current.title())),
+                    blankToNull(extractLineValue(response, "AUTHOR").orElse(current.author())),
+                    blankToNull(extractLineValue(response, "INTRO").orElse(current.description()))
+            );
+            transactionService.updateBookMetadata(
+                    work.bookId(), translated.title(), translated.author(), translated.description()
+            );
+            return translated;
         } catch (Exception e) {
-            log.warn("SummaryJob metadata translation skipped for bookId={}: {}", book.getId(), e.getMessage());
-            return book;
+            log.warn("SummaryJob metadata translation skipped for bookId={}: {}", work.bookId(), e.getMessage());
+            return current;
         }
     }
 
@@ -233,5 +226,8 @@ public class SummaryProcessor {
             throw new IllegalStateException("AI chat client is not configured.");
         }
         return chatClient;
+    }
+
+    private record BookMetadata(String title, String author, String description) {
     }
 }

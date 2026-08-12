@@ -199,7 +199,7 @@ CREATE TABLE IF NOT EXISTS quiz_submission (
     total_count   INT      NOT NULL,
     submitted_at  DATETIME NOT NULL,
     PRIMARY KEY (id),
-    KEY idx_quiz_submission_user_id (user_id),
+    KEY idx_quiz_submission_user_submitted_at (user_id, submitted_at DESC),
     KEY idx_quiz_submission_quiz_id (quiz_id),
     CONSTRAINT fk_quiz_submission_quiz FOREIGN KEY (quiz_id) REFERENCES quiz (id),
     CONSTRAINT fk_quiz_submission_user FOREIGN KEY (user_id) REFERENCES users (id)
