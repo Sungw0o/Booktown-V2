@@ -1,0 +1,14 @@
+label=AFTER-run2
+window_start=1786514798 window_end=1786515018
+pending_max=0
+active_max=9
+active_avg=4.53333
+idle_min=1
+acquire_seconds_max=0.312163862
+# note: no _bucket histograms exposed (percentiles-histogram not enabled) -> no acquire/read p95 via Prometheus; read p95 comes from k6 client-side output instead
+cpu_avg=0.265567
+cpu_max=0.3707768653057741
+heap_max=275844624
+executor_active_max=2
+executor_queue_max=13
+0

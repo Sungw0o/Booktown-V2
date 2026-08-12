@@ -92,7 +92,7 @@ SELECT n,
               '. This text exists to give the description column a realistic size.'),
        NULL,
        ELT(1 + (n % 5), 'NOVEL','POETRY','DRAMA','ESSAY','HISTORY'),
-       ELT(1 + (n % 4), 'KR','US','GB','FR'),
+       ELT(1 + (n % 5), 'KOREA','CHINA','JAPAN','WESTERN','OTHER'),
        (n * 7919) % 500,
        IF(n % 3 = 0, TRUE, FALSE),
        NOW() - INTERVAL (n % 720) DAY

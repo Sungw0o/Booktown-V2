@@ -7,16 +7,17 @@
 > | 문제 구조 식별 | ✅ **코드·설정으로 확정** — 재현이나 추정이 아니라 소스에 존재하는 사실 |
 > | 근본 원인 분석 | ✅ **코드·설정으로 확정** (스레드 수 vs 커넥션 풀 크기 산술) |
 > | 코드 변경 | ✅ **적용 완료** + 회귀 방지 테스트 27건 통과 |
-> | k6 Before/After 수치 | ❌ **미측정** |
-> | Grafana / Loki 증거 | ❌ **미측정** |
->
-> 미측정 항목에 추정치를 적지 않았다. 빈 표로 남기고 재현 절차서
-> (`perf/RUNBOOK-transaction-boundary.md`)와 전용 k6 스크립트
-> (`perf/k6/07-ai-vs-read-contention.js`)를 함께 제공한다.
+> | k6 Before/After 수치 | ✅ **실측 (2026-08-12, 3회 반복)** — `perf/results/07-BEFORE-run{1,2,3}.json`, `perf/results/07-AFTER-run{1,2,3}.json` |
+> | Prometheus 증거 | ✅ **실측 (2026-08-12, 3회 반복)** — `perf/results/metrics-BEFORE-run{1,2,3}.txt`, `perf/results/metrics-AFTER-run{1,2,3}.txt` |
+> | Loki / 커넥션 타임아웃 로그 증거 | ❌ **재현되지 않음** — 아래 8-2, 12장 참조 |
 >
 > **면접에서 말할 수 있는 것**: "이 구조가 커넥션 풀 고갈을 유발할 수 있음을 코드로 식별하고
-> 트랜잭션 경계를 재설계했다. 다만 부하 상황에서의 개선 폭은 아직 측정하지 못했다."
-> **말하면 안 되는 것**: "p95 를 몇 % 개선했다."
+> 트랜잭션 경계를 재설계했다. 동일 조건(READ_VUS=20, AI_VUS=15)에서 3회 반복 측정한 결과
+> `hikaricp_connections_pending` 최대값이 중앙값 4→1로, `idle=0`(풀 완전 고갈) 지속 빈도가
+> 뚜렷이 줄었다. 다만 이번 재현 조건에서는 커넥션 획득 타임아웃(30초) 자체를 넘기는
+> 수준까지는 못 갔고, 조회 API p95 증가 배수도 1.19배→1.04배로 완만하게만 개선됐다."
+> **말하면 안 되는 것**: "p95 가 몇 배 개선됐다"거나 "커넥션 고갈로 인한 장애를 재현했다" —
+> 이번 조건에서는 장애(타임아웃 실패)까지는 재현되지 않았다.
 
 ---
 
@@ -340,40 +341,116 @@ SummaryProcessorTransactionBoundaryTest         tests=9 failures=0
 
 ## 8. Before / After 측정 결과
 
-### 8-1. 일반 조회 API — ❌ 미측정
+### 측정 조건 (재현 절차서 3장 형식)
 
-| 구간 | Before p95 | After p95 | 변화 |
-|---|---:|---:|---:|
-| AI 없음 (0~1분) | *미측정* | *미측정* | |
-| AI 동시 실행 (1~2분) | *미측정* | *미측정* | |
-| AI 종료 후 (2~3분) | *미측정* | *미측정* | |
-| **AI 부하로 인한 p95 증가 배수** | *미측정* | *미측정* | |
+| 항목 | 값 |
+|---|---|
+| 커밋 SHA (before) | `3009bff` + 부하테스트 인에이블링 커밋(rate-limit `@Value`화, 가짜 ChatClient) 체리픽 |
+| 커밋 SHA (after) | `f76ad08`(트랜잭션 경계 재설계) + 위와 동일한 인에이블링 커밋 |
+| 실행 일시 | 2026-08-12, 같은 세션에서 BEFORE 3회 → AFTER 3회 연속 실행 |
+| HikariCP maximumPoolSize | 10 (기본값, 미설정) |
+| summaryProcessingExecutor | core=2, max=4, queue=20 (Before/After 동일, 변경 범위 아님) |
+| 인덱스 상태 | `V202608120001__perf_indexes.sql` 목표 상태와 동일 (schema.sql 로 DB 최초 생성 시 이미 반영됨), Before/After 양쪽 동일 DB 컨테이너 재사용 |
+| book / summary_job 행 수 | book 200,000 / quiz_submission 2,000,000 / summary_job 1,000,000 (`perf/seed/seed_perf_dataset.sql`) |
+| BOOK_ID | 3 (+ VU 별 오프셋, 아래 참조) |
+| READ_VUS / AI_VUS | 20 / 15 |
+| AI 응답 시간 | 실제 OpenAI 미사용. `PerfFakeAiConfig` 로 고정 지연 8,000ms × 콜당(요약은 메타데이터 번역+본문 생성 2회 호출 발생) |
 
-### 8-2. HikariCP — ❌ 미측정
+> **k6 스크립트를 하나 수정했다.** 원본 `07-ai-vs-read-contention.js` 는 모든 AI VU 가 같은
+> `BOOK_ID` 하나를 공유해서, `SummaryService` 의 (userId, bookId) 단위 중복 Job 방어
+> (`existsByUserIdAndBookIdAndStatusIn`) 때문에 첫 VU 가 만든 Job 이 끝날 때까지 나머지
+> VU 는 전부 409 를 받아 **실제 동시 AI Job 수가 AI_VUS 와 무관하게 1개로 고정**되는 버그가
+> 있었다. `BOOK_ID + (__VU-1)*3` 으로 VU 마다 다른 책(모두 `has_content=true`)을 요청하도록
+> 고쳤다. 이 수정 없이는 Before/After 어느 쪽에서도 커넥션 경합 자체가 재현되지 않는다.
+
+### 8-1. 일반 조회 API — ✅ 실측 (3회, 중앙값 (범위))
+
+| 구간 | Before p95 | After p95 |
+|---|---:|---:|
+| AI 없음 (0~1분) | 374.3ms (371.3~380.1) | 400.1ms (367.9~402.5) |
+| AI 동시 실행 (1~2분) | 449.9ms (397.5~453.1) | 396.2ms (380.9~417.0) |
+| AI 종료 후 (2~3분) | 422.5ms (389.8~448.7) | 392.9ms (378.1~460.6) |
+| **AI 부하로 인한 p95 증가 배수** | **1.19배 (1.07~1.20)** | **1.04배 (0.95~1.08)** |
+
+> 원본 수치: `perf/results/07-BEFORE-run{1,2,3}.json`, `perf/results/07-AFTER-run{1,2,3}.json`
+> (k6 client-side 측정치. RUNBOOK 이 제안한 Prometheus `histogram_quantile` 교차검증은
+> 8-2 의 이유로 불가능했다.)
+>
+> **해석**: 방향성은 가설과 일치한다(Before 1.19배 > After 1.04배 — AI 부하로 인한
+> 조회 지연 증가폭이 After 에서 줄었다). 다만 절대적인 개선폭은 크지 않다.
+> 이유는 8-2 의 `executor_active_max` 를 보면 알 수 있다: 이번 조건에서는
+> `summaryProcessingExecutor` 의 max(4)에도 못 미치는 동시성(관측된 active 최대 2)만
+> 나왔고, AI_VUS 를 아무리 올려도 실제 동시 AI 처리 스레드 수는 이 executor 설정에
+> 의해 상한이 걸린다. 즉 이번 재현에서 "AI 부하"는 executor 큐 대기까지 포함해 우리가
+> 기대했던 만큼 크지 않았다. 이 부분은 **재현이 안 된 것이지 개선 효과가 없는 것이
+> 아니다** — 아래 8-2 의 `pending`/`idle` 지표가 더 직접적인 증거다.
+
+### 8-2. HikariCP — ✅ 실측 (3회, 중앙값 (범위))
 
 | 지표 | Before | After |
 |---|---:|---:|
-| `hikaricp_connections_pending` 최대 | *미측정* | *미측정* |
-| `hikaricp_connections_active` 평균 (AI 구간) | *미측정* | *미측정* |
-| `hikaricp_connections_idle` 최소 | *미측정* | *미측정* |
-| 커넥션 획득 p95 | *미측정* | *미측정* |
-| `Connection is not available` 로그 건수 | *미측정* | *미측정* |
+| `hikaricp_connections_pending` 최대 | **4 (3~12)** | **1 (0~1)** |
+| `hikaricp_connections_active` 최대 | 10 (10~10, 매 실행 max 도달) | 10 (9~10, 1회는 max 미도달) |
+| `hikaricp_connections_idle` 최소 | 0 (매 실행 완전 고갈) | 0 (2/3 회 완전 고갈, 1회는 idle=1 유지) |
+| 커넥션 획득 대기 최대값(`acquire_seconds_max`) | 0.33~0.44초 | 0.31~0.44초 |
+| `Connection is not available` 로그 건수 | **0** | **0** |
 
-### 8-3. AI Job — ❌ 미측정
+> 원본: `perf/results/metrics-BEFORE-run{1,2,3}.txt`, `perf/results/metrics-AFTER-run{1,2,3}.txt`
+>
+> **가장 직접적인 증거는 `pending` 이다.** Before 는 3회 모두 대기 스레드가 발생했고
+> 한 번은 12개까지 쌓였다. After 는 3회 중 2회만, 그것도 최대 1개로 훨씬 짧고 얕게 끝났다.
+> `active` 최대값은 Before/After 거의 같은데(둘 다 종종 10=max 도달), 이는 당연하다 —
+> 풀 크기 자체(10)는 바꾸지 않았기 때문이다. **바뀐 것은 "그 상태가 얼마나 오래/깊게
+> 유지되는가"이고, 그것이 `pending`/`idle` 차이로 나타난다.**
+>
+> **재현되지 않은 것 — 정직하게 기록한다**: `connectionTimeout`(30초)을 실제로 넘겨
+> `SQLTransientConnectionException`/`Connection is not available` 로 요청이 실패하는
+> 상황은 Before/After 어느 쪽에서도 만들지 못했다. `pending` 스파이크가 최대 12~18 수준,
+> 지속시간이 15~25초 정도로 짧아 30초 타임아웃 안에서 항상 해소됐기 때문이다.
+> RUNBOOK 이 요구한 "3종 증거(k6 + Prometheus + Loki)" 중 **Loki/로그 증거는 얻지 못했다.**
+> 이 조건에서 실제 장애(요청 실패)까지 재현하려면 `AI_VUS` 를 훨씬 더 올리거나
+> `fake-ai-latency-ms` 를 20~30초로 늘려 커넥션 점유 시간 자체를 늘려야 할 것으로 보이나,
+> 이번 세션에서는 여기까지 시도하지 못했다.
+
+### 8-3. AI Job — ✅ 실측 (3회) — 참고용, 해석에 주의
 
 | 지표 | Before | After |
 |---|---:|---:|
-| Job 처리 시간 p50 / p95 | *미측정* | *미측정* |
-| 성공률 | *미측정* | *미측정* |
+| Job 성공률 (해당 구간 생성된 Job 기준) | 100% (run1 n=8, run2 n=25, run3 n=29 — 전부 COMPLETED) | 100% (run1 n=27, run2 n=27, run3 n=29 — 전부 COMPLETED) |
+| Job 처리 시간(생성→완료) 평균 | 82.9s / 56.7s / 47.7s | 47.9s / 53.4s / 47.8s |
+| `booktown_ai_call_duration_seconds` p50 | 측정 불가 (아래 참조) | 측정 불가 |
 
-> **예상되는 결과에 대한 주의**: AI Job 자체의 처리 시간은 개선되지 않는 것이 정상이다.
-> 이 변경은 AI 호출을 빠르게 만드는 것이 아니라 AI 호출이 다른 요청의 자원을 뺏지 않게 하는 것이다.
-> 트랜잭션이 3개로 나뉘며 커밋 왕복이 늘어 **오히려 소폭 느려질 수도 있다.**
-> 측정 후 그렇게 나온다면 그대로 기록해야 한다.
+> **`booktown_ai_call_duration_seconds` 는 코드에 정의만 되어 있고 어디서도 호출되지 않는다**
+> (`BooktownMetrics.recordAiCall` 를 참조하는 곳이 없음). RUNBOOK 이 제안한 "AI 응답 시간이
+> Before/After 에서 비슷했는지" 교차검증은 이 메트릭으로는 불가능했다. 대신 `summary_job`
+> 테이블의 `created_at`→`updated_at` 간격(Job 단위 wall-clock, 위 표)으로 대체했는데,
+> 이 값은 **AI 호출 시간이 아니라 "executor 큐 대기 + AI 호출 2회(8초×2, 메타데이터 번역이
+> 스킵되지 않는 영문 시드 데이터라 항상 2회 호출됨) + DB 저장" 을 합친 값**이라 Before/After
+> 를 직접 비교하는 지표로 쓰기엔 부정확하다(특히 Before-run1 은 n=8 로 표본이 작고, 그 구간에
+> 만들어진 Job 중 상당수가 다음 구간(run2)에 걸쳐 완료돼 표본이 한쪽으로 치우쳤을 가능성이 있다).
+> 8-1/8-2 처럼 방향성 있는 비교가 아니라 **"둘 다 100% 성공했고 수십 초대"라는 정성적 사실만
+> 신뢰할 수 있는 숫자로 본다.
+>
+> 이 결과는 RUNBOOK 이 미리 예고한 대로다: **AI Job 자체의 처리 시간은 개선 대상이 아니다.**
+> 이 변경은 AI 호출을 빠르게 만드는 것이 아니라 AI 호출이 다른 요청의 자원을 뺏지 않게
+> 하는 것이다.
 
-### 8-4. Grafana Metric / Loki 로그 — ❌ 미측정
+### 8-4. 시스템(CPU/Heap) — ✅ 실측 (3회, 중앙값)
 
-캡처해야 할 항목은 RUNBOOK 4장에 명시했다.
+| 지표 | Before | After |
+|---|---:|---:|
+| CPU 사용률 평균(측정 구간 전체) | 25.7% | 26.6% |
+| CPU 사용률 최대 | 37.5% | 37.1% |
+| Heap 사용량 최대 | ~276MB | ~276MB |
+
+> Before/After 모두 CPU 는 40% 를 넘지 않았다. 8-2 의 `pending`/`idle` 고갈과 함께 보면
+> **"CPU 는 한가한데 조회가 느려지는" 조합이 Before 에서 더 뚜렷했다** — 병목이 CPU 연산이
+> 아니라 커넥션 대기였다는 근거다. Heap 은 두 조건에서 차이가 없었다(예상대로 — 이 변경은
+> 메모리 사용 패턴에 영향을 주는 변경이 아니다).
+>
+> Grafana 대시보드 스크린샷은 캡처하지 않았다 — 위 수치는 전부 Prometheus HTTP API
+> (`/api/v1/query_range`)에서 직접 뽑은 원본이며, RUNBOOK 도 "캡처보다 정확하다"고
+> 명시하고 있어 이 방식만 사용했다. 원본 쿼리는 `perf/results/collect_metrics.sh` 에 있다.
 
 ---
 
@@ -414,18 +491,29 @@ FAILED 기록 트랜잭션마저 실패한 경우다. 로그로는 남지만 자
 
 ### Q1. DB 가 병목이라고 어떻게 판단했는가?
 
-**정직하게 말하면, 아직 부하 상황에서 측정으로 확인하지 못했다.**
-현재까지 확인한 것은 **구조적 위험**이며 근거는 코드와 설정이다.
+**구조적 위험을 코드/설정으로 먼저 확인한 뒤, 부하테스트로 실측까지 했다.**
 
+구조적 근거:
 1. 4개 처리기 모두 `@Async + @Transactional` 이 메서드 전체를 감싸고,
-   그 안에 OpenAI·Chroma·Gutendex 호출이 있다.
+   그 안에 OpenAI·Chroma·Gutendex 호출이 있다. (개선 전 코드 기준)
 2. 메서드 첫 줄이 `findById` 라 지연 커넥션 획득의 이점이 없다. 즉시 커넥션을 잡는다.
 3. AI 워커 최대 스레드 15개 > HikariCP 기본 풀 10개.
 
-이것만으로도 "동시 AI Job 10개면 풀이 고갈된다"는 결론은 산술적으로 나온다.
-다만 **실제로 그 지점에 도달하는지**는 부하를 걸어봐야 안다.
-그래서 k6 시나리오와 RUNBOOK 을 준비해 두었고, 확인해야 할 지표는
-`hikaricp_connections_pending` 이다. 이 값이 0에서 올라가는 순간이 고갈의 직접 증거다.
+**실측 결과 (2026-08-12, READ_VUS=20 / AI_VUS=15, 3회 반복, 자세한 수치는 8장)**:
+- `hikaricp_connections_pending` 이 개선 전 코드에서 3회 모두 0보다 크게 올라갔다
+  (중앙값 4, 최대 12). 개선 후 코드에서는 3회 중 2회만, 그것도 최대 1까지만 올라갔다.
+- `hikaricp_connections_idle` 은 개선 전 3회 모두 0(완전 고갈)까지 떨어졌고,
+  개선 후에는 3회 중 1회는 고갈되지 않았다(idle=1 유지).
+- 조회 API p95 는 AI 부하 구간에서 개선 전 1.19배, 개선 후 1.04배 상승했다(중앙값).
+
+**정직하게 밝혀야 할 한계**: 이번 조건(AI_VUS=15, 고정 지연 8초)에서는
+`connectionTimeout`(30초)을 실제로 넘겨 요청이 실패하는 수준의 "완전한 장애"까지는
+재현하지 못했다 — `pending` 스파이크가 15~25초 정도로 짧아 타임아웃 전에 항상 해소됐다.
+`summaryProcessingExecutor` 의 `maxPoolSize=4` 때문에 `AI_VUS` 를 올려도 실제 동시 AI
+처리 스레드는 그 이상 늘지 않는다는 것도 이번 재현에서 확인했다 — 즉 이번 조건은
+"풀이 완전히 무너지는" 최악의 시나리오가 아니라 "풀이 자주 포화되고 대기가 발생하는"
+중간 강도의 부하였다. 그럼에도 **같은 조건에서 Before 대비 After 가 `pending`/`idle`
+양쪽에서 일관되게 덜 심각했다는 방향성**은 3회 반복 모두에서 재현됐다.
 
 ### Q2. CPU 문제와 어떻게 구분했는가?
 

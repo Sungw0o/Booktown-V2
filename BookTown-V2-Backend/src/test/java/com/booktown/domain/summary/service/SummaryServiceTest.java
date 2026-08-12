@@ -49,7 +49,7 @@ class SummaryServiceTest {
         summaryDocumentRepository = mock(SummaryDocumentRepository.class);
         summaryProcessor = mock(SummaryProcessor.class);
         summaryService = new SummaryService(bookRepository, userRepository,
-                summaryJobRepository, summaryDocumentRepository, summaryProcessor);
+                summaryJobRepository, summaryDocumentRepository, summaryProcessor, 10);
     }
 
     @Test

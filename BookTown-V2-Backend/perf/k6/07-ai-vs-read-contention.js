@@ -106,9 +106,16 @@ export function readTraffic(data) {
 
 // ---------------------------------------------------------------------------
 // AI Job 트래픽 — 요약 생성 요청
+//
+// VU 마다 서로 다른 책(BOOK_ID + (__VU-1)*3, has_content=true 인 3의 배수)을 요청한다.
+// 모든 VU 가 같은 책을 요청하면 SummaryService 의 (userId, bookId) 단위 중복 Job 방어
+// (existsByUserIdAndBookIdAndStatusIn) 때문에 첫 VU 가 만든 Job 이 끝날 때까지
+// 나머지 VU 는 전부 409 를 받아 실제 동시 AI Job 수가 1개로 고정되어 버린다.
+// 그러면 AI_VUS 를 아무리 올려도 커넥션 풀 경합이 재현되지 않으므로, 책을 분산한다.
 // ---------------------------------------------------------------------------
 export function aiTraffic(data) {
-  const res = http.post(`${BASE_URL}/books/${BOOK_ID}/summaries`, null, {
+  const bookId = BOOK_ID + (__VU - 1) * 3;
+  const res = http.post(`${BASE_URL}/books/${bookId}/summaries`, null, {
     headers: { Authorization: `Bearer ${data.token}`, 'Content-Type': 'application/json' },
     tags: { endpoint: 'summary_create' },
   });
