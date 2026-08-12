@@ -23,6 +23,10 @@ class QuizSubmissionIndexTest {
                 .contains(tuple(
                         "idx_quiz_submission_user_submitted_at",
                         "user_id, submitted_at DESC"
+                ))
+                .doesNotContain(tuple(
+                        "idx_quiz_submission_user_id",
+                        "user_id"
                 ));
     }
 
