@@ -13,11 +13,22 @@ import java.time.Instant;
 import java.util.Date;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
 class JwtTokenProviderTest {
 
     private static final String SECRET = "test-secret-key-change-me-change-me-change-me";
+
+    @Test
+    void refresh_tokens_issued_in_the_same_second_are_unique() {
+        JwtTokenProvider provider = new JwtTokenProvider(jwtProperties());
+
+        String first = provider.createRefreshToken(1L, "user@example.com");
+        String second = provider.createRefreshToken(1L, "user@example.com");
+
+        assertThat(first).isNotEqualTo(second);
+    }
 
     @Test
     void get_user_id_throws_invalid_token_when_subject_is_not_number() {

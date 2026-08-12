@@ -2,7 +2,7 @@
 
 ## 목적
 
-Mockito로 Redis 응답을 흉내 내는 단위 테스트와 실제 Redis Lua 원자 실행을 구분합니다. 같은 Refresh Token으로 여러 갱신 요청이 동시에 들어올 때 성공 요청이 하나로 제한되는지 확인합니다.
+같은 Refresh Token으로 정상적인 병렬 갱신 요청이 들어올 때 한 요청만 토큰을 교체하고, grace window 안의 나머지 요청은 교체된 현재 토큰을 동일하게 반환하는지 확인합니다.
 
 ## 측정 조건
 
@@ -13,6 +13,7 @@ Mockito로 Redis 응답을 흉내 내는 단위 테스트와 실제 Redis Lua �
 | Java | 21 |
 | Gradle | 9.4.1 |
 | 병렬 요청 | 32 |
+| grace window | 15초 |
 | 대상 | `RefreshTokenService.rotate`의 Lua 스크립트 |
 | 테스트 | `RefreshTokenServiceRedisIntegrationTest` |
 
@@ -32,15 +33,16 @@ docker stop booktown-redis-evidence
 ## 결과
 
 - Gradle 결과: `BUILD SUCCESSFUL`
-- 성공: 1건
-- 거절: 31건
-- 허용된 거절 코드: `REFRESH_TOKEN_REUSED`, `REFRESH_TOKEN_NOT_FOUND`
+- 토큰 교체: 1건
+- 현재 토큰 동일 반환: 31건
+- 실패: 0건
 
-실제 Redis에 대해 Lua 스크립트가 원자적으로 실행되고 동일한 기존 토큰으로 두 번 이상 교체되지 않음을 확인했습니다.
+실제 Redis 7.4에서 32개 요청이 모두 같은 현재 토큰을 받았고 Redis에도 그 토큰 하나만 저장됐습니다.
 
 ## 해석과 한계
 
 - 이 테스트는 단일 Redis 인스턴스의 Lua 원자성과 애플리케이션 결과 코드 매핑을 검증합니다.
 - Redis Cluster, 네트워크 단절, failover 중 재시도까지 검증한 결과는 아닙니다.
-- 같은 탭의 401 요청은 프론트엔드 단일 실행 큐로 합치지만, 다중 탭이나 네트워크 재시도로 이전 토큰이 다시 전달되면 현재 정책은 Redis 세션을 폐기합니다. 정상 경합과 탈취를 구분하는 grace window 또는 토큰 회전 결과 재사용은 후속 과제입니다.
+- 15초가 지난 이전 토큰 재사용은 세션을 폐기해 탈취 재사용으로 처리합니다.
+- grace window 안에서 발생한 실제 탈취 요청은 정상 경합과 구분할 수 없습니다.
 - 성능 지표가 아니라 동시 요청의 중복 성공 방지에 대한 기능 검증입니다.

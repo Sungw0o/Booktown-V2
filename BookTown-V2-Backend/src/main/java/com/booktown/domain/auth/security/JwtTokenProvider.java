@@ -15,6 +15,7 @@ import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Date;
+import java.util.UUID;
 
 @Component
 @RequiredArgsConstructor
@@ -49,6 +50,7 @@ public class JwtTokenProvider {
     private String createToken(Long userId, String email, long expirationMs) {
         Instant now = Instant.now();
         return Jwts.builder()
+                .id(UUID.randomUUID().toString())
                 .subject(String.valueOf(userId))
                 .claim("email", email)
                 .issuedAt(Date.from(now))

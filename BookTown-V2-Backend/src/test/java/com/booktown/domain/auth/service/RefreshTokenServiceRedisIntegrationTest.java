@@ -54,7 +54,7 @@ class RefreshTokenServiceRedisIntegrationTest {
     @AfterAll
     void disconnectFromRedis() {
         if (redisTemplate != null) {
-            redisTemplate.delete(KEY);
+            redisTemplate.delete(List.of(KEY, KEY + ":previous", KEY + ":rotated-at"));
         }
         if (connectionFactory != null) {
             connectionFactory.destroy();
@@ -62,7 +62,7 @@ class RefreshTokenServiceRedisIntegrationTest {
     }
 
     @Test
-    void only_one_parallel_rotation_succeeds_against_real_redis() throws Exception {
+    void parallel_rotation_returns_one_winner_token_to_every_request() throws Exception {
         refreshTokenService.save(USER_ID, OLD_TOKEN, TimeUnit.MINUTES.toMillis(1));
 
         CountDownLatch ready = new CountDownLatch(REQUEST_COUNT);
@@ -83,13 +83,10 @@ class RefreshTokenServiceRedisIntegrationTest {
                 results.add(future.get(10, TimeUnit.SECONDS));
             }
 
-            assertThat(results).filteredOn(RotateResult::success).hasSize(1);
-            assertThat(results).filteredOn(result -> !result.success()).hasSize(REQUEST_COUNT - 1);
-            assertThat(results)
-                    .filteredOn(result -> !result.success())
-                    .extracting(RotateResult::errorCode)
-                    .allMatch(errorCode -> errorCode == ErrorCode.REFRESH_TOKEN_REUSED
-                            || errorCode == ErrorCode.REFRESH_TOKEN_NOT_FOUND);
+            assertThat(results).allMatch(RotateResult::success);
+            assertThat(results).extracting(RotateResult::refreshToken).doesNotContainNull();
+            assertThat(results).extracting(RotateResult::refreshToken).containsOnly(results.getFirst().refreshToken());
+            assertThat(redisTemplate.opsForValue().get(KEY)).isEqualTo(results.getFirst().refreshToken());
         } finally {
             executor.shutdownNow();
         }
@@ -100,19 +97,19 @@ class RefreshTokenServiceRedisIntegrationTest {
             ready.countDown();
             start.await();
             try {
-                refreshTokenService.rotate(
+                String effectiveToken = refreshTokenService.rotate(
                         USER_ID,
                         OLD_TOKEN,
                         "new-refresh-token-" + index,
                         TimeUnit.MINUTES.toMillis(1)
                 );
-                return new RotateResult(true, null);
+                return new RotateResult(true, effectiveToken, null);
             } catch (CustomException exception) {
-                return new RotateResult(false, exception.getErrorCode());
+                return new RotateResult(false, null, exception.getErrorCode());
             }
         };
     }
 
-    private record RotateResult(boolean success, ErrorCode errorCode) {
+    private record RotateResult(boolean success, String refreshToken, ErrorCode errorCode) {
     }
 }

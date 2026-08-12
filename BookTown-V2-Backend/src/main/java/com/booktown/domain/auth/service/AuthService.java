@@ -84,10 +84,15 @@ public class AuthService {
         String accessToken = jwtTokenProvider.createAccessToken(user.getId(), user.getEmail());
         String refreshToken = jwtTokenProvider.createRefreshToken(user.getId(), user.getEmail());
         long refreshTokenExpirationMs = jwtTokenProvider.getRefreshTokenExpirationMs();
-        refreshTokenService.rotate(user.getId(), oldRefreshToken, refreshToken, refreshTokenExpirationMs);
+        String effectiveRefreshToken = refreshTokenService.rotate(
+                user.getId(),
+                oldRefreshToken,
+                refreshToken,
+                refreshTokenExpirationMs
+        );
         return new TokenPair(
                 new AuthTokenResponse(accessToken, jwtProperties.getAccessTokenExpirationMs()),
-                refreshToken,
+                effectiveRefreshToken,
                 refreshTokenExpirationMs
         );
     }
