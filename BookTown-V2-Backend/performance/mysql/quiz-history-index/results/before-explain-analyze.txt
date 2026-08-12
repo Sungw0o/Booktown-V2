@@ -1,0 +1,24 @@
+RUN 1
+-> Limit: 20 row(s)  (cost=20655 rows=20) (actual time=70.2..70.2 rows=20 loops=1)
+    -> Sort: quiz_submission.submitted_at DESC, limit input to 20 row(s) per chunk  (cost=20655 rows=190924) (actual time=69.9..69.9 rows=20 loops=1)
+        -> Index lookup on quiz_submission using idx_quiz_submission_user_id (user_id=42)  (cost=20655 rows=190924) (actual time=1.68..62.4 rows=100000 loops=1)
+
+RUN 2
+-> Limit: 20 row(s)  (cost=20655 rows=20) (actual time=60.8..60.8 rows=20 loops=1)
+    -> Sort: quiz_submission.submitted_at DESC, limit input to 20 row(s) per chunk  (cost=20655 rows=190924) (actual time=60.8..60.8 rows=20 loops=1)
+        -> Index lookup on quiz_submission using idx_quiz_submission_user_id (user_id=42)  (cost=20655 rows=190924) (actual time=1.73..55.3 rows=100000 loops=1)
+
+RUN 3
+-> Limit: 20 row(s)  (cost=20655 rows=20) (actual time=62.5..62.5 rows=20 loops=1)
+    -> Sort: quiz_submission.submitted_at DESC, limit input to 20 row(s) per chunk  (cost=20655 rows=190924) (actual time=62.5..62.5 rows=20 loops=1)
+        -> Index lookup on quiz_submission using idx_quiz_submission_user_id (user_id=42)  (cost=20655 rows=190924) (actual time=1.65..56.7 rows=100000 loops=1)
+
+RUN 4
+-> Limit: 20 row(s)  (cost=20655 rows=20) (actual time=66.7..66.7 rows=20 loops=1)
+    -> Sort: quiz_submission.submitted_at DESC, limit input to 20 row(s) per chunk  (cost=20655 rows=190924) (actual time=66.7..66.7 rows=20 loops=1)
+        -> Index lookup on quiz_submission using idx_quiz_submission_user_id (user_id=42)  (cost=20655 rows=190924) (actual time=1.53..60.4 rows=100000 loops=1)
+
+RUN 5
+-> Limit: 20 row(s)  (cost=20655 rows=20) (actual time=76.6..76.7 rows=20 loops=1)
+    -> Sort: quiz_submission.submitted_at DESC, limit input to 20 row(s) per chunk  (cost=20655 rows=190924) (actual time=76.6..76.6 rows=20 loops=1)
+        -> Index lookup on quiz_submission using idx_quiz_submission_user_id (user_id=42)  (cost=20655 rows=190924) (actual time=2.69..69.8 rows=100000 loops=1)
