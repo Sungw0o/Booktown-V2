@@ -17,17 +17,20 @@ README와 포트폴리오에서 사용하는 기술 주장을 코드·설정·�
 |---|---|---|---|
 | Job 상태 기반 비동기 처리 | Summary·Download Job 서비스와 관련 테스트 | 자동 테스트 + 코드 확인 | Job 상태를 저장하고 커밋 이후 처리를 시작하도록 구성 |
 | ChromaDB 검색 실패 fallback | Summary 처리기의 예외 분기 | 코드 확인 | 검색 실패 시 원문으로 계속 처리하도록 분기 |
-| Redis Refresh Token Lua | Lua 스크립트, 결과 코드 처리 | 코드 확인 | 검증·교체·삭제를 Lua 원자 연산으로 구성 |
+| Redis Refresh Token Lua | Lua 스크립트, 결과 코드 단위 테스트, 실제 Redis 병렬 통합 테스트 | 실행 확인 + 자동 테스트 | 검증·교체·삭제를 Lua 원자 연산으로 구성하고, 동일 토큰의 병렬 갱신은 한 요청만 성공함을 확인 |
+| 퀴즈 이력 복합 인덱스 | 재현 SQL, 인덱스 전후 `EXPLAIN ANALYZE` 원문 5회 | 실행 확인 | 50만 건 중 HEAVY 사용자 10만 건 조회에서 읽은 행 100,000→20, 중앙값 66.7ms→2.02ms |
 | readiness 확인 | HealthController와 CI/CD 워크플로 | 코드·설정 확인 | 배포 후 readiness를 확인하도록 구성 |
 | 이전 이미지 롤백 | `.github/workflows/cicd.yml` | 설정 확인 | readiness 실패 시 이전 이미지 재기동 흐름 구성 |
 | N+1 개선 | 조회 코드, fetch join·EntityGraph·batch 적용 | 코드 확인 | 조회 경로에 맞춰 N+1 완화 전략 적용 |
 | k6 부하 검증 | `performance/k6/health-check.js` | 스크립트 확인 | health endpoint 부하 스모크 스크립트 구성 |
 
-## 아직 성과 수치로 사용하지 않는 항목
+## 실행 확인한 항목
 
 ### Redis 동시성
 
-Lua 스크립트와 결과 코드가 구현돼 있지만 Testcontainers 또는 실제 Redis에 병렬 요청을 보내는 통합 테스트는 확인되지 않았습니다. 따라서 "동시 요청에서 중복 갱신 0건을 검증"처럼 실행 결과를 단정하지 않습니다.
+`RefreshTokenServiceRedisIntegrationTest`가 Redis 7.4에 같은 기존 Refresh Token으로 32개 갱신 요청을 동시에 보냅니다. 2026-08-13 로컬 실행에서 정확히 1개 요청만 성공하고 나머지 31개는 `REFRESH_TOKEN_REUSED` 또는 `REFRESH_TOKEN_NOT_FOUND`로 거절됐습니다. 실행 환경과 명령은 [Redis Refresh Token 병렬 통합 테스트](REDIS_REFRESH_TOKEN_CONCURRENCY_TEST.md)에 기록했습니다.
+
+## 아직 성과 수치로 사용하지 않는 항목
 
 ### ChromaDB 장애 격리
 
@@ -37,9 +40,9 @@ fallback 분기는 구현돼 있지만 ChromaDB를 실제로 중단시킨 통합
 
 이전 이미지 재기동 로직은 워크플로에서 확인됩니다. 다만 실패 이미지를 배포하거나 의존성 장애를 주입해 롤백을 재현한 GitHub Actions 로그는 별도 보관되지 않았습니다.
 
-### 성능 개선 수치
+### API·부하 성능 개선 수치
 
-k6 스크립트는 있으나 비교 전후의 JSON 출력, 실행 환경, 데이터 규모가 저장소에 없습니다. 성능 수치를 공개하려면 다음을 함께 보관합니다.
+퀴즈 이력 복합 인덱스는 별도 재현 보고서와 원시 실행계획을 보관했습니다. 그 외 k6 기반 API·부하 측정은 비교 전후의 JSON 출력, 실행 환경, 데이터 규모가 저장소에 없습니다. 성능 수치를 공개하려면 다음을 함께 보관합니다.
 
 1. 동일한 k6 스크립트와 VU·duration 조건
 2. 테스트 데이터 규모와 인덱스 상태
@@ -48,7 +51,6 @@ k6 스크립트는 있으나 비교 전후의 JSON 출력, 실행 환경, 데이
 
 ## 다음 검증 순서
 
-1. 실제 Redis를 사용하는 Refresh Token 병렬 갱신 통합 테스트
-2. ChromaDB 중단 시 fallback과 readiness를 각각 확인하는 장애 테스트
-3. 실패 배포를 주입한 rollback 실행 로그 보관
-4. 동일 조건의 k6 전후 결과를 `performance/results`에 보관
+1. ChromaDB 중단 시 fallback과 readiness를 각각 확인하는 장애 테스트
+2. 실패 배포를 주입한 rollback 실행 로그 보관
+3. 동일 조건의 k6 전후 결과를 `performance/results`에 보관
