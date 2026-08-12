@@ -478,7 +478,7 @@ const BookRegisterPanel: React.FC<{ isMockMode: boolean }> = ({ isMockMode }) =>
                     <h3 className="text-sm font-semibold text-slate-800 dark:text-white">Gutendex에서 가져오기</h3>
                     <p className="text-[11px] text-slate-500 dark:text-white/40 mt-0.5">Project Gutenberg 공개 도서를 검색하고 원문 크롤링 Job을 수동으로 시작합니다.</p>
                   </div>
-                  <span className="text-[10px] px-2 py-1 rounded-full bg-violet-500/10 text-violet-600 dark:text-violet-300 font-mono">Gemini Ready</span>
+                  <span className="text-[10px] px-2 py-1 rounded-full bg-violet-500/10 text-violet-600 dark:text-violet-300 font-mono">OpenAI Ready</span>
                 </div>
                 <form onSubmit={handleGutendexSearch} className="flex gap-2">
                   <div className="relative flex-1">
@@ -725,7 +725,7 @@ const BookRegisterPanel: React.FC<{ isMockMode: boolean }> = ({ isMockMode }) =>
               {job.status === 'COMPLETED' && (
                 <div className="glass-soft rounded-2xl p-4 space-y-3 border border-blue-500/10">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold text-slate-500 dark:text-white/40 uppercase tracking-wider">Gemini AI 표지</span>
+                    <span className="text-xs font-semibold text-slate-500 dark:text-white/40 uppercase tracking-wider">OpenAI 표지</span>
                     <span className={`text-[10px] px-2 py-1 rounded-full font-bold ${
                       coverError ? 'bg-red-500/10 text-red-500'
                       : coverLoading ? 'bg-blue-500/10 text-blue-500'
@@ -755,7 +755,7 @@ const BookRegisterPanel: React.FC<{ isMockMode: boolean }> = ({ isMockMode }) =>
               {summaryJob && (
                 <div className="glass-soft rounded-2xl p-4 space-y-3 border border-violet-500/10">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold text-slate-500 dark:text-white/40 uppercase tracking-wider">Gemini AI 요약 Job</span>
+                    <span className="text-xs font-semibold text-slate-500 dark:text-white/40 uppercase tracking-wider">OpenAI 요약 Job</span>
                     <SummaryStatusBadge status={summaryJob.status} />
                   </div>
                   <div className="grid grid-cols-2 gap-3 text-xs">

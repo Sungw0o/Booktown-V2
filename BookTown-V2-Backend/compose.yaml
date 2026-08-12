@@ -19,7 +19,6 @@ services:
       CHROMA_HOST: http://chroma
       CHROMA_PORT: 8000
       JWT_SECRET: local-dev-jwt-secret-must-be-at-least-32-bytes
-      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
     depends_on:
       mysql:
