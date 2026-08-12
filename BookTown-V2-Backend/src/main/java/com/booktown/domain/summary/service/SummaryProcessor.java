@@ -69,7 +69,7 @@ public class SummaryProcessor {
 
     @Async("summaryProcessingExecutor")
     public void process(Long jobId, boolean isRegeneration) {
-        SummaryJobTransactionService.SummaryWork work = transactionService.start(jobId);
+        SummaryJobTransactionService.SummaryWork work = transactionService.updateJobToProcessing(jobId);
 
         try {
             String context = buildRagContextIfAvailable(work.bookId(), work.chapters());
@@ -96,11 +96,11 @@ public class SummaryProcessor {
             );
             summaryDocumentRepository.save(doc);
 
-            transactionService.complete(jobId, doc.getId());
+            transactionService.updateJobToCompleted(jobId, doc.getId());
             log.info("SummaryJob {} completed: summaryId={}", jobId, doc.getId());
         } catch (Exception e) {
             log.error("SummaryJob {} failed: {}", jobId, e.getMessage(), e);
-            transactionService.fail(jobId, e.getMessage(), isAiServiceError(e));
+            transactionService.updateJobToFailed(jobId, e.getMessage(), isAiServiceError(e));
         }
     }
 

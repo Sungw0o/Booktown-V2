@@ -21,10 +21,10 @@ class SummaryTransactionBoundaryTest {
 
     @Test
     void jobStateChangesUseShortTransactions() throws NoSuchMethodException {
-        assertTransactional("start", Long.class);
+        assertTransactional("updateJobToProcessing", Long.class);
         assertTransactional("updateBookMetadata", Long.class, String.class, String.class, String.class);
-        assertTransactional("complete", Long.class, String.class);
-        assertTransactional("fail", Long.class, String.class, boolean.class);
+        assertTransactional("updateJobToCompleted", Long.class, String.class);
+        assertTransactional("updateJobToFailed", Long.class, String.class, boolean.class);
     }
 
     private void assertTransactional(String methodName, Class<?>... parameterTypes) throws NoSuchMethodException {

@@ -21,7 +21,7 @@ public class SummaryJobTransactionService {
     private final ChapterRepository chapterRepository;
 
     @Transactional
-    public SummaryWork start(Long jobId) {
+    public SummaryWork updateJobToProcessing(Long jobId) {
         SummaryJob job = summaryJobRepository.findById(jobId).orElseThrow();
         job.markProcessing();
         summaryJobRepository.save(job);
@@ -46,14 +46,14 @@ public class SummaryJobTransactionService {
     }
 
     @Transactional
-    public void complete(Long jobId, String summaryDocumentId) {
+    public void updateJobToCompleted(Long jobId, String summaryDocumentId) {
         SummaryJob job = summaryJobRepository.findById(jobId).orElseThrow();
         job.markCompleted(summaryDocumentId);
         summaryJobRepository.save(job);
     }
 
     @Transactional
-    public void fail(Long jobId, String errorMessage, boolean retryable) {
+    public void updateJobToFailed(Long jobId, String errorMessage, boolean retryable) {
         SummaryJob job = summaryJobRepository.findById(jobId).orElseThrow();
         job.markFailed(errorMessage, retryable);
         summaryJobRepository.save(job);
