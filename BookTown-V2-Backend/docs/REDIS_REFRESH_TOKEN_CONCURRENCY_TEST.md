@@ -9,6 +9,8 @@
 | 항목 | 값 |
 |---|---|
 | 실행 일자 | 2026-08-13 |
+| EC2 검증 시각 | 2026-08-13 08:21:38 KST |
+| EC2 환경 | AWS EC2 `t3.small`, Docker의 Gradle 9.4.1/JDK 21 |
 | Redis | `redis:7.4-alpine` |
 | Java | 21 |
 | Gradle | 9.4.1 |
