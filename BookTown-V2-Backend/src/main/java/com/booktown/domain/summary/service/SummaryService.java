@@ -16,7 +16,7 @@ import com.booktown.domain.user.entity.User;
 import com.booktown.domain.user.repository.UserRepository;
 import com.booktown.global.exception.CustomException;
 import com.booktown.global.exception.ErrorCode;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -26,10 +26,8 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
-@RequiredArgsConstructor
 public class SummaryService {
 
-    private static final int DAILY_RATE_LIMIT = 10;
     private static final List<SummaryJobStatus> ACTIVE_STATUSES =
             List.of(SummaryJobStatus.QUEUED, SummaryJobStatus.PROCESSING);
 
@@ -38,6 +36,22 @@ public class SummaryService {
     private final SummaryJobRepository summaryJobRepository;
     private final SummaryDocumentRepository summaryDocumentRepository;
     private final SummaryProcessor summaryProcessor;
+    private final int dailyRateLimit;
+
+    public SummaryService(
+            BookRepository bookRepository,
+            UserRepository userRepository,
+            SummaryJobRepository summaryJobRepository,
+            SummaryDocumentRepository summaryDocumentRepository,
+            SummaryProcessor summaryProcessor,
+            @Value("${booktown.summary.daily-rate-limit:10}") int dailyRateLimit) {
+        this.bookRepository = bookRepository;
+        this.userRepository = userRepository;
+        this.summaryJobRepository = summaryJobRepository;
+        this.summaryDocumentRepository = summaryDocumentRepository;
+        this.summaryProcessor = summaryProcessor;
+        this.dailyRateLimit = dailyRateLimit;
+    }
 
     @Transactional
     public SummaryJobResponse createSummary(Long userId, Long bookId, CreateSummaryRequest request) {
@@ -51,7 +65,7 @@ public class SummaryService {
         }
         int todayCount = summaryJobRepository.countByUserIdAndCreatedAtAfter(
                 userId, LocalDateTime.now().minusDays(1));
-        if (todayCount >= DAILY_RATE_LIMIT) {
+        if (todayCount >= dailyRateLimit) {
             throw new CustomException(ErrorCode.SUMMARY_RATE_LIMIT_EXCEEDED);
         }
 
