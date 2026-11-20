@@ -22,39 +22,39 @@
 
 ## 내가 맡은 일
 
-팀 기간(2025.03–06, 백엔드). 근거는 팀 원본 저장소의 커밋 작성자입니다.
+**팀 프로젝트 (2025.03–06)**
 
-- Gutendex에서 고전 원문과 메타데이터를 가져와 저장하는 수집 기능을 만들었습니다. ([BookService](https://github.com/BookTown/BookTown_Back_end/blob/master/src/main/java/hello/booktown/service/BookService.java))
-- 원문을 장면별로 요약하고 장면마다 이미지를 생성해 S3에 올리는 콘텐츠 생성 흐름을 구현했습니다. ([SummaryService](https://github.com/BookTown/BookTown_Back_end/blob/master/src/main/java/hello/booktown/service/SummaryService.java), [StabilityAIService](https://github.com/BookTown/BookTown_Back_end/blob/master/src/main/java/hello/booktown/service/StabilityAIService.java), [S3UploadService](https://github.com/BookTown/BookTown_Back_end/blob/master/src/main/java/hello/booktown/service/S3UploadService.java))
-- 퀴즈 생성·채점 API와 Dockerfile, Docker Hub를 거쳐 EC2에 배포하는 GitHub Actions 워크플로를 작성했습니다. ([QuizService](https://github.com/BookTown/BookTown_Back_end/blob/master/src/main/java/hello/booktown/service/QuizService.java), [gradle.yml](https://github.com/BookTown/BookTown_Back_end/blob/master/.github/workflows/gradle.yml))
+- Gutendex에서 고전 원문을 가져오는 수집 기능을 만들었습니다. ([BookService](https://github.com/BookTown/BookTown_Back_end/blob/master/src/main/java/hello/booktown/service/BookService.java))
+- 장면별 요약, 장면 이미지 생성, S3 업로드를 구현했습니다. ([SummaryService](https://github.com/BookTown/BookTown_Back_end/blob/master/src/main/java/hello/booktown/service/SummaryService.java), [StabilityAIService](https://github.com/BookTown/BookTown_Back_end/blob/master/src/main/java/hello/booktown/service/StabilityAIService.java), [S3UploadService](https://github.com/BookTown/BookTown_Back_end/blob/master/src/main/java/hello/booktown/service/S3UploadService.java))
+- 퀴즈 생성·채점 API와 EC2 배포 워크플로를 만들었습니다. ([QuizService](https://github.com/BookTown/BookTown_Back_end/blob/master/src/main/java/hello/booktown/service/QuizService.java), [gradle.yml](https://github.com/BookTown/BookTown_Back_end/blob/master/.github/workflows/gradle.yml))
 
-V2(2026.06–08, 1인). 이 저장소의 커밋은 모두 제가 작성했습니다.
+**V2 개인 정리 (2026.06–08)**
 
-- 요약·퀴즈·장면 이미지 생성을 Job 상태(`QUEUED → PROCESSING → COMPLETED/FAILED`)로 관리하고, 커밋 이후 비동기로 처리하는 Spring AI(OpenAI)·ChromaDB RAG 파이프라인으로 다시 만들었습니다.
-- 테스트 → GHCR 이미지 → EC2 배포 → readiness 확인 → 이전 이미지 롤백, 프론트엔드는 OIDC → S3 → CloudFront로 이어지는 배포 파이프라인을 구성했습니다. ([cicd.yml](.github/workflows/cicd.yml))
+- 요약·퀴즈·이미지 생성을 Job 상태로 관리하는 Spring AI·ChromaDB 비동기 파이프라인으로 다시 만들었습니다.
+- 롤백을 포함한 백엔드 EC2 배포와 S3·CloudFront 프론트 배포를 구성했습니다. ([cicd.yml](.github/workflows/cicd.yml))
 
 ## 문제를 고친 기록
 
-### 1. AI 응답을 기다리는 동안 DB 커넥션을 붙잡던 요약 작업
+### 1. AI 응답을 기다리며 DB 커넥션을 붙잡던 요약 작업
 
-- **문제**: 요약 처리기 `SummaryProcessor.process`가 `@Async`와 `@Transactional`을 함께 달고 있었습니다. ChromaDB 검색과 OpenAI 호출(메타데이터 번역, 요약 생성)을 기다리는 동안에도 JPA 트랜잭션과 DB 커넥션이 묶여 있었습니다.
-- **원인**: 트랜잭션이 Job 조회부터 결과 저장까지 메서드 전체를 감싸고 있어 외부 호출 시간이 곧 커넥션 점유 시간이었습니다. 요약 executor는 최대 4스레드([AsyncConfig](BookTown-V2-Backend/src/main/java/com/booktown/global/config/AsyncConfig.java)), HikariCP 풀은 별도 설정이 없어 기본값 10개라는 점을 코드와 설정에서 확인했습니다.
-- **해결**: 상태 변경(PROCESSING 전이, 메타데이터 반영, COMPLETED, FAILED)만 [SummaryJobTransactionService](BookTown-V2-Backend/src/main/java/com/booktown/domain/summary/service/SummaryJobTransactionService.java)의 짧은 트랜잭션 메서드로 옮겼습니다. RAG 검색과 OpenAI 호출은 [SummaryProcessor](BookTown-V2-Backend/src/main/java/com/booktown/domain/summary/service/SummaryProcessor.java)에서 트랜잭션 밖으로 뺐습니다.
-- **결과**: 처리 메서드에 트랜잭션을 다시 씌우면 실패하는 테스트를 두었습니다. [SummaryTransactionBoundaryTest](BookTown-V2-Backend/src/test/java/com/booktown/domain/summary/service/SummaryTransactionBoundaryTest.java)가 `process`에 `@Transactional`이 없는지, 상태 변경 메서드 4개에는 있는지 검사합니다. (커밋 [050f6e1](https://github.com/Sungw0o/Booktown-V2/commit/050f6e1))
+- **문제**: 요약 처리 메서드 전체에 `@Transactional`이 걸려, OpenAI 응답을 기다리는 동안 DB 커넥션이 묶였습니다.
+- **원인**: 외부 호출 시간이 그대로 커넥션 점유 시간이 되는 구조였습니다. 요약 스레드는 최대 4개([AsyncConfig](BookTown-V2-Backend/src/main/java/com/booktown/global/config/AsyncConfig.java)), 커넥션 풀은 기본값 10개인 것을 설정에서 확인했습니다.
+- **해결**: 상태 변경만 [SummaryJobTransactionService](BookTown-V2-Backend/src/main/java/com/booktown/domain/summary/service/SummaryJobTransactionService.java)의 짧은 트랜잭션으로 옮기고, RAG 검색과 OpenAI 호출은 트랜잭션 밖으로 뺐습니다.
+- **결과**: 처리 메서드에 트랜잭션을 다시 씌우면 [SummaryTransactionBoundaryTest](BookTown-V2-Backend/src/test/java/com/booktown/domain/summary/service/SummaryTransactionBoundaryTest.java)가 실패합니다. ([050f6e1](https://github.com/Sungw0o/Booktown-V2/commit/050f6e1))
 
-### 2. 제출이 많은 사용자의 퀴즈 이력 조회가 전체 행을 읽고 정렬하던 문제
+### 2. 퀴즈 이력 조회가 전체 행을 읽고 정렬하던 문제
 
-- **문제**: 최근 퀴즈 제출 20건 조회(`findAllByUserIdOrderBySubmittedAtDesc`)가 `user_id` 단일 인덱스만 사용했습니다. 제출이 많은 사용자는 후보 행을 모두 읽은 뒤 따로 정렬해야 했습니다.
-- **원인**: 50만 건 중 한 사용자에게 10만 건을 몰아 둔 재현 데이터에서 `EXPLAIN ANALYZE`로 10만 행 읽기와 별도 Sort 단계를 확인했습니다. ([재현 SQL](BookTown-V2-Backend/performance/mysql/quiz-history-index/setup-before.sql))
-- **해결**: 조회 조건과 정렬 순서를 함께 만족하는 `(user_id, submitted_at DESC)` 복합 인덱스로 교체하고 엔티티에 선언했습니다. 기존 단일 인덱스가 다시 생기지 않도록 [QuizSubmissionIndexTest](BookTown-V2-Backend/src/test/java/com/booktown/domain/quiz/entity/QuizSubmissionIndexTest.java)로 검증합니다.
-- **결과**: 읽은 행이 100,000에서 20으로, 실행 시간 중앙값이 66.7ms에서 2.02ms로 줄었습니다. MySQL 8.4 컨테이너에서 인덱스 전후 각 5회 `EXPLAIN ANALYZE`로 측정했습니다. ([재현 보고서](BookTown-V2-Backend/docs/QUIZ_HISTORY_INDEX_PERFORMANCE.md), [Before](BookTown-V2-Backend/performance/mysql/quiz-history-index/results/before-explain-analyze.txt), [After](BookTown-V2-Backend/performance/mysql/quiz-history-index/results/after-explain-analyze.txt))
+- **문제**: 최근 제출 20건 조회가 `user_id` 단일 인덱스만 써서, 제출이 많은 사용자는 모든 행을 읽고 따로 정렬했습니다.
+- **원인**: 한 사용자에 10만 건을 둔 재현 데이터에서 `EXPLAIN ANALYZE`로 10만 행 읽기와 Sort 단계를 확인했습니다. ([재현 SQL](BookTown-V2-Backend/performance/mysql/quiz-history-index/setup-before.sql))
+- **해결**: `(user_id, submitted_at DESC)` 복합 인덱스로 바꾸고 [QuizSubmissionIndexTest](BookTown-V2-Backend/src/test/java/com/booktown/domain/quiz/entity/QuizSubmissionIndexTest.java)로 고정했습니다.
+- **결과**: 읽은 행이 100,000에서 20으로, 실행 시간 중앙값이 66.7ms에서 2.02ms로 줄었습니다. MySQL 8.4에서 전후 각 5회 `EXPLAIN ANALYZE`로 쟀습니다. ([보고서](BookTown-V2-Backend/docs/QUIZ_HISTORY_INDEX_PERFORMANCE.md))
 
-### 3. 동시 재발급 요청에 정상 세션까지 폐기되던 Refresh Token 회전
+### 3. 동시 재발급에 정상 세션까지 폐기되던 Refresh Token
 
-- **문제**: 여러 탭이나 네트워크 재시도로 같은 Refresh Token이 동시에 재발급에 쓰이면 한 요청만 성공했습니다. 나머지 요청은 토큰 재사용으로 판정되어 세션이 폐기됐습니다.
-- **원인**: 실제 Redis 7.4에 같은 토큰으로 32개 요청을 동시에 보내는 통합 테스트에서 1건 성공, 31건 거절을 확인했습니다. Lua 스크립트가 저장된 토큰과 다르면 바로 키를 지우는 구조였습니다.
-- **해결**: Lua 스크립트가 교체 직전 토큰과 교체 시각을 15초 동안 함께 저장하도록 바꿨습니다. 그 안에 이전 토큰이 오면 이미 교체된 현재 토큰을 돌려주고, 15초가 지난 재사용은 세션을 폐기합니다. ([RefreshTokenService](BookTown-V2-Backend/src/main/java/com/booktown/domain/auth/service/RefreshTokenService.java))
-- **결과**: 같은 테스트에서 32개 요청이 토큰 교체 1건, 현재 토큰 동일 반환 31건, 실패 0건으로 끝났습니다. AWS EC2 t3.small의 Docker(JDK 21, Redis 7.4)에서 실행했습니다. ([테스트 기록](BookTown-V2-Backend/docs/REDIS_REFRESH_TOKEN_CONCURRENCY_TEST.md), [RefreshTokenServiceRedisIntegrationTest](BookTown-V2-Backend/src/test/java/com/booktown/domain/auth/service/RefreshTokenServiceRedisIntegrationTest.java), 커밋 [a31c7ec](https://github.com/Sungw0o/Booktown-V2/commit/a31c7ec))
+- **문제**: 여러 탭이 같은 Refresh Token으로 동시에 재발급하면 하나만 성공하고 나머지는 세션이 폐기됐습니다.
+- **원인**: Redis 7.4에 32개 동시 요청을 보내는 통합 테스트에서 1건 성공, 31건 거절을 확인했습니다. Lua 스크립트가 토큰이 다르면 바로 키를 지웠습니다.
+- **해결**: 교체 직전 토큰을 15초 동안 함께 저장하고, 그 안에 온 이전 토큰에는 현재 토큰을 돌려주게 했습니다. ([RefreshTokenService](BookTown-V2-Backend/src/main/java/com/booktown/domain/auth/service/RefreshTokenService.java))
+- **결과**: 같은 테스트에서 교체 1건, 같은 토큰 반환 31건, 실패 0건으로 끝났습니다. ([테스트 기록](BookTown-V2-Backend/docs/REDIS_REFRESH_TOKEN_CONCURRENCY_TEST.md), [a31c7ec](https://github.com/Sungw0o/Booktown-V2/commit/a31c7ec))
 
 ## 💻 Tech Stacks
 
